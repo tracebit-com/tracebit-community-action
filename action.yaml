@@ -1,0 +1,25 @@
+name: Issue credentials
+description: Issue AWS credentials
+
+inputs:
+  customer-id:
+    description: "Customer ID"
+    required: true
+
+  api-token:
+    description: "API token"
+    required: true
+
+outputs:
+  aws-access-key-id:
+    description: "The AWS access key ID"
+  aws-secret-access-key:
+    description: "The AWS secret access key"
+  aws-session-token:
+    description: "The AWS session token"
+  profile-name:
+    description: "The name of the AWS profile"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

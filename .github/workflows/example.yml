@@ -1,0 +1,27 @@
+name: Example
+
+on:
+  push:
+
+jobs:
+  issue-credentials:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Issue credentials
+        continue-on-error: true
+        # uses: tracebit-com/tracebit-github-action@main
+        uses: ./.
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+
+      - name: Show env
+        run: printenv
+
+      - name: Show aws config
+        run: |
+          cat ~/.aws/config
+          cat ~/.aws/credentials

@@ -1,0 +1,25 @@
+{
+	"name": "tracebit-github-action",
+	"version": "0.0.0",
+	"private": true,
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "bun build src/index.ts --target=node --format=cjs --outdir=dist",
+		"run:local": "bash scripts/run-local.sh",
+		"format": "biome check --write",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@actions/core": "1.11.1",
+		"@actions/exec": "1.1.1",
+		"@actions/github": "6.0.1",
+		"@actions/http-client": "2.2.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.8.3",
+		"@types/node": "20.19.27",
+		"typescript": "5.9.3",
+		"vitest": "4.0.16",
+		"@types/bun": "latest"
+	}
+}
