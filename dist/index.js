@@ -22748,7 +22748,7 @@ var DEFAULT_REGIONS = [
   "eu-central-1",
   "ap-southeast-1"
 ];
-var BASE_URL = "stage.tracebit.com";
+var BASE_URL = "tracebit.com";
 var httpClient = new import_http_client.HttpClient("tracebit-github-action");
 function getInputFallback(name, required) {
   const value = core.getInput(name);

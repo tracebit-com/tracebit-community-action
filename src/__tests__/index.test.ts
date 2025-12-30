@@ -112,7 +112,7 @@ describe("action run", () => {
 		await run();
 
 		expect(postMock.mock.calls[0]?.[0]).toBe(
-			"https://customerx.stage.tracebit.com/api/v1/credentials/issue-credentials",
+			"https://customerx.tracebit.com/api/v1/credentials/issue-credentials",
 		);
 		const body = JSON.parse(String(postMock.mock.calls[0]?.[1] ?? "{}")) as {
 			labels: Array<{ name: string; value: string }>;

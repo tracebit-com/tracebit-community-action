@@ -13,8 +13,7 @@ const DEFAULT_REGIONS = [
 	"eu-central-1",
 	"ap-southeast-1",
 ];
-// TODO: change to production URL when ready
-const BASE_URL = "stage.tracebit.com";
+const BASE_URL = "tracebit.com";
 const httpClient = new HttpClient("tracebit-github-action");
 
 function getInputFallback(name: string, required: boolean): string {
