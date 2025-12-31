@@ -9,6 +9,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Issue credentials
+        uses: tracebit-com/tracebit-github-action@main
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -26,6 +32,12 @@ jobs:
   bundle-check:
     runs-on: ubuntu-latest
     steps:
+      - name: Issue credentials
+        uses: tracebit-com/tracebit-github-action@main
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+
       - name: Checkout
         uses: actions/checkout@v4
 
