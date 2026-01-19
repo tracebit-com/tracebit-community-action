@@ -38,7 +38,7 @@ vi.mock("@actions/github", () => ({
 
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
-import { run } from "../index";
+import { isValidRegion, run } from "../index";
 
 const originalEnv = process.env;
 
@@ -64,6 +64,8 @@ describe("action run", () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
 			return "";
 		});
 
@@ -88,6 +90,8 @@ describe("action run", () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
 			return "";
 		});
 
@@ -126,7 +130,7 @@ describe("action run", () => {
 		expect(labelMap.get("github.sha")).toBe("deadbeef");
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"profile-name",
-			expect.stringMatching(/^administrator-[A-Za-z0-9]{7}$/),
+			"tracebit-profile",
 		);
 	});
 
@@ -134,6 +138,8 @@ describe("action run", () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
 			return "";
 		});
 
@@ -165,5 +171,45 @@ describe("action run", () => {
 		await expect(run()).resolves.toBeUndefined();
 		expect(core.warning).toHaveBeenCalled();
 		expect(postMock).not.toHaveBeenCalled();
+	});
+
+	it("shows warning when region is invalid", async () => {
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "not-a-region";
+			return "";
+		});
+
+		await expect(run()).resolves.toBeUndefined();
+		expect(core.warning).toHaveBeenCalled();
+	});
+
+	it("doesn't show warning when region is correct", async () => {
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "eu-west-2";
+			return "";
+		});
+
+		await expect(run()).resolves.toBeUndefined();
+		expect(core.warning).not.toHaveBeenCalled();
+	});
+});
+
+describe("isValidRegion", () => {
+	it("accepts common AWS region formats", () => {
+		expect(isValidRegion("us-east-1")).toBe(true);
+		expect(isValidRegion("eu-west-1")).toBe(true);
+		expect(isValidRegion("us-gov-west-1")).toBe(true); // Test GovCloud
+		expect(isValidRegion("eusc-de-east-1")).toBe(true); // Test European Sovereign Cloud
+	});
+
+	it("rejects invalid region formats", () => {
+		expect(isValidRegion("us_east_1")).toBe(false);
+		expect(isValidRegion("us-east")).toBe(false);
 	});
 });

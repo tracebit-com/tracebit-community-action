@@ -6,6 +6,8 @@ This repository contains a Node.js GitHub Action that issues Tracebit AWS creden
 
 - `customer-id` (required): Tracebit customer id.
 - `api-token` (required): Tracebit API token.
+- `profile` (required): AWS profile name to write.
+- `profile-region` (required): AWS region to configure for the profile.
 
 ## Outputs
 
@@ -26,6 +28,8 @@ Reference this action by repo and ref (tag/branch/sha):
   with:
     customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
     api-token: ${{ secrets.SECURITY_API_TOKEN }}
+    profile: administrator
+    profile-region: us-east-1
 ```
 
 ## Enable in organization settings
@@ -59,6 +63,8 @@ The bundled action can be run locally by using the provided script. It loads `.e
 # .env (not committed)
 INPUT_CUSTOMER_ID=your-customer-id
 INPUT_API_TOKEN=your-api-token
+INPUT_PROFILE=administrator
+INPUT_PROFILE_REGION=us-east-1
 
 npm run run:local
 # or

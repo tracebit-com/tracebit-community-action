@@ -17,6 +17,8 @@ jobs:
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
 
       - name: Show env
         run: printenv

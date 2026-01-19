@@ -10,6 +10,14 @@ inputs:
     description: "API token"
     required: true
 
+  profile:
+    description: "AWS profile"
+    required: true
+
+  profile-region:
+    description: "AWS region for the profile"
+    required: true
+
 outputs:
   aws-access-key-id:
     description: "The AWS access key ID"

@@ -22728,6 +22728,7 @@ __export(exports_src, {
   toNonEmptyLabels: () => toNonEmptyLabels,
   run: () => run,
   issueCredentials: () => issueCredentials,
+  isValidRegion: () => isValidRegion,
   getGithubContext: () => getGithubContext,
   confirmCredentials: () => confirmCredentials,
   buildIssueUrl: () => buildIssueUrl,
@@ -22739,15 +22740,7 @@ var core = __toESM(require_core(), 1);
 var exec = __toESM(require_exec(), 1);
 var import_github = __toESM(require_github(), 1);
 var import_http_client = __toESM(require_lib(), 1);
-var PROFILE_NAME_PREFIX = "administrator-";
 var DEFAULT_ENV_PREFIX = "__AWS__";
-var DEFAULT_REGIONS = [
-  "eu-west-1",
-  "us-east-1",
-  "us-west-2",
-  "eu-central-1",
-  "ap-southeast-1"
-];
 var BASE_URL = "tracebit.com";
 var httpClient = new import_http_client.HttpClient("tracebit-github-action");
 function getInputFallback(name, required) {
@@ -22765,18 +22758,8 @@ function getInputFallback(name, required) {
   }
   return "";
 }
-function pickRandomRegion() {
-  const index = Math.floor(Math.random() * DEFAULT_REGIONS.length);
-  return DEFAULT_REGIONS[index] ?? DEFAULT_REGIONS[0];
-}
-function pickDefaultProfileName() {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let suffix = "";
-  for (let i = 0;i < 7; i += 1) {
-    const idx = Math.floor(Math.random() * alphabet.length);
-    suffix += alphabet[idx] ?? "A";
-  }
-  return `${PROFILE_NAME_PREFIX}${suffix}`;
+function isValidRegion(region) {
+  return /^[a-z]+-[a-z0-9-]+-\d+$/u.test(region);
 }
 function buildIssueUrl(customerId) {
   return `https://${customerId}.${BASE_URL}/api/v1/credentials/issue-credentials`;
@@ -22919,16 +22902,21 @@ async function confirmCredentials(token, customerId, confirmationId) {
 async function run() {
   let customerId = "";
   let token = "";
+  let profileName = "";
+  let region = "";
   try {
     customerId = getInputFallback("customer-id", true);
     token = getInputFallback("api-token", true);
+    profileName = getInputFallback("profile", true);
+    region = getInputFallback("profile-region", true);
+    if (!isValidRegion(region)) {
+      core.warning(`Region ${region} format doesn't pass validation, it might be wrong`);
+    }
   } catch (error2) {
     core.warning(`Input resolution failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
     return;
   }
-  const profileName = pickDefaultProfileName();
   const envPrefix = DEFAULT_ENV_PREFIX;
-  const region = pickRandomRegion();
   core.setOutput("profile-name", profileName);
   let creds = null;
   try {

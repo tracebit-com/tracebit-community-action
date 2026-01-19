@@ -4,15 +4,7 @@ import * as exec from "@actions/exec";
 import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
 
-const PROFILE_NAME_PREFIX = "administrator-";
 const DEFAULT_ENV_PREFIX = "__AWS__";
-const DEFAULT_REGIONS = [
-	"eu-west-1",
-	"us-east-1",
-	"us-west-2",
-	"eu-central-1",
-	"ap-southeast-1",
-];
 const BASE_URL = "tracebit.com";
 const httpClient = new HttpClient("tracebit-github-action");
 
@@ -32,20 +24,8 @@ function getInputFallback(name: string, required: boolean): string {
 	return "";
 }
 
-function pickRandomRegion(): string {
-	const index = Math.floor(Math.random() * DEFAULT_REGIONS.length);
-	return DEFAULT_REGIONS[index] ?? DEFAULT_REGIONS[0];
-}
-
-function pickDefaultProfileName(): string {
-	const alphabet =
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-	let suffix = "";
-	for (let i = 0; i < 7; i += 1) {
-		const idx = Math.floor(Math.random() * alphabet.length);
-		suffix += alphabet[idx] ?? "A";
-	}
-	return `${PROFILE_NAME_PREFIX}${suffix}`;
+export function isValidRegion(region: string): boolean {
+	return /^[a-z]+-[a-z0-9-]+-\d+$/u.test(region);
 }
 
 export function buildIssueUrl(customerId: string): string {
@@ -277,18 +257,25 @@ export async function confirmCredentials(
 export async function run(): Promise<void> {
 	let customerId = "";
 	let token = "";
+	let profileName = "";
+	let region = "";
 	try {
 		customerId = getInputFallback("customer-id", true);
 		token = getInputFallback("api-token", true);
+		profileName = getInputFallback("profile", true);
+		region = getInputFallback("profile-region", true);
+		if (!isValidRegion(region)) {
+			core.warning(
+				`Region ${region} format doesn't pass validation, it might be wrong`,
+			);
+		}
 	} catch (error) {
 		core.warning(
 			`Input resolution failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		return;
 	}
-	const profileName = pickDefaultProfileName();
 	const envPrefix = DEFAULT_ENV_PREFIX;
-	const region = pickRandomRegion();
 
 	core.setOutput("profile-name", profileName);
 
