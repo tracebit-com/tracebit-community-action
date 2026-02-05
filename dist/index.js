@@ -3462,7 +3462,7 @@ var require_constants2 = __commonJS((exports2, module2) => {
     }
   })();
   var channel;
-  var structuredClone = globalThis.structuredClone ?? function structuredClone(value, options = undefined) {
+  var structuredClone = globalThis.structuredClone ?? function structuredClone2(value, options = undefined) {
     if (arguments.length === 0) {
       throw new TypeError("missing argument");
     }
@@ -22767,10 +22767,6 @@ function buildIssueUrl(customerId) {
 function buildConfirmUrl(customerId) {
   return `https://${customerId}.${BASE_URL}/api/v1/credentials/confirm-credentials`;
 }
-function sleep(ms) {
-  if (false) {}
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 async function ensureCommandExists(command) {
   const locator = core.platform.isWindows ? "where" : "which";
   try {
@@ -22802,8 +22798,6 @@ async function issueCredentials(token, customerId) {
   const context2 = getGithubContext();
   const uniqueId = import_node_crypto.randomUUID();
   core.info(`Issuing credential with unique_id ${uniqueId}`);
-  const delayMs = Math.floor(Math.random() * 5000) + Math.floor(Math.random() * 100);
-  await sleep(delayMs);
   const labels = toNonEmptyLabels([
     { name: "github.ref", value: context2.ref },
     { name: "github.repo", value: context2.repository },

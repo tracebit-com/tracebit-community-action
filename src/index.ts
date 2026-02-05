@@ -43,13 +43,6 @@ export type IssuedCredentials = {
 	sessionToken: string;
 };
 
-function sleep(ms: number): Promise<void> {
-	if (process.env.NODE_ENV === "test") {
-		return Promise.resolve();
-	}
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function ensureCommandExists(command: string): Promise<void> {
 	const locator = core.platform.isWindows ? "where" : "which";
 	try {
@@ -89,10 +82,6 @@ export async function issueCredentials(
 	const context = getGithubContext();
 	const uniqueId = randomUUID();
 	core.info(`Issuing credential with unique_id ${uniqueId}`);
-
-	const delayMs =
-		Math.floor(Math.random() * 5000) + Math.floor(Math.random() * 100);
-	await sleep(delayMs);
 
 	const labels = toNonEmptyLabels([
 		{ name: "github.ref", value: context.ref },

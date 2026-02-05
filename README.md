@@ -43,13 +43,13 @@ If the action lives in a private repository, make sure it is allowed for use acr
 
 ## [Install Bun](https://bun.com/docs/installation)
 
-You need Bun to build the bundle locally.
+You need Bun 1.3.8 to build the bundle locally.
 
 ```bash
-curl -fsSL https://bun.sh/install | bash
+curl -fsSL https://bun.com/install | bash -s "bun-v1.3.8"
 ```
 
-Then restart your shell and verify:
+Then restart your shell and verify it's using the correct version:
 
 ```bash
 bun --version
