@@ -1,3 +1,7 @@
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@actions/core", () => ({
@@ -36,16 +40,33 @@ vi.mock("@actions/github", () => ({
 	context: githubContext,
 }));
 
+vi.mock("node:os", async () => {
+	const actual = await vi.importActual<typeof import("node:os")>("node:os");
+	return {
+		...actual,
+		homedir: vi.fn(),
+	};
+});
+
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 import { isValidRegion, run } from "../index";
 
 const originalEnv = process.env;
+let tempHomeDir = "";
 
 describe("action run", () => {
 	beforeEach(() => {
-		process.env = { ...originalEnv };
+		tempHomeDir = mkdtempSync(
+			path.join(os.tmpdir(), "tracebit-github-action-test-"),
+		);
 		vi.resetAllMocks();
+		process.env = {
+			...originalEnv,
+			HOME: tempHomeDir,
+			USERPROFILE: tempHomeDir,
+		};
+		vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
 		vi.mocked(exec.exec).mockResolvedValue(0);
 		postMock.mockReset();
 		githubContext.ref = "";
@@ -56,8 +77,12 @@ describe("action run", () => {
 		githubContext.job = "";
 	});
 
-	afterEach(() => {
+	afterEach(async () => {
 		process.env = originalEnv;
+		if (tempHomeDir) {
+			await rm(tempHomeDir, { recursive: true, force: true });
+			tempHomeDir = "";
+		}
 	});
 
 	it("does not throw when issuing credentials fails", async () => {

@@ -22736,13 +22736,17 @@ __export(exports_src, {
 });
 module.exports = __toCommonJS(exports_src);
 var import_node_crypto = require("node:crypto");
+var import_promises = require("node:fs/promises");
+var os = __toESM(require("node:os"));
+var path = __toESM(require("node:path"));
 var core = __toESM(require_core(), 1);
-var exec = __toESM(require_exec(), 1);
 var import_github = __toESM(require_github(), 1);
 var import_http_client = __toESM(require_lib(), 1);
 var DEFAULT_ENV_PREFIX = "__AWS__";
 var BASE_URL = "tracebit.com";
-var httpClient = new import_http_client.HttpClient("tracebit-github-action");
+var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
+  socketTimeout: 500
+});
 function getInputFallback(name, required) {
   const value = core.getInput(name);
   if (value) {
@@ -22767,18 +22771,19 @@ function buildIssueUrl(customerId) {
 function buildConfirmUrl(customerId) {
   return `https://${customerId}.${BASE_URL}/api/v1/credentials/confirm-credentials`;
 }
-async function ensureCommandExists(command) {
-  const locator = core.platform.isWindows ? "where" : "which";
+async function appendToFile(filePath, content) {
+  const normalizedContent = content.endsWith(`
+`) ? content : `${content}
+`;
   try {
-    const exitCode = await exec.exec(locator, [command], {
-      ignoreReturnCode: true,
-      silent: true
-    });
-    if (exitCode !== 0) {
-      throw new Error(`Required tool ${command} could not be found.`);
+    await import_promises.appendFile(filePath, `
+${normalizedContent}`, "utf8");
+  } catch (error2) {
+    const err = error2;
+    if (err.code !== "ENOENT") {
+      throw err;
     }
-  } catch {
-    throw new Error(`Required tool ${command} could not be found.`);
+    await import_promises.writeFile(filePath, normalizedContent, "utf8");
   }
 }
 function toNonEmptyLabels(labels) {
@@ -22846,32 +22851,22 @@ async function issueCredentials(token, customerId) {
   };
 }
 async function writeProfile(profileName, region, creds) {
-  await ensureCommandExists("aws");
-  await exec.exec("aws", [
-    "configure",
-    "set",
-    "--profile",
-    profileName,
-    "aws_access_key_id",
-    creds.accessKeyId
-  ], {});
-  await exec.exec("aws", [
-    "configure",
-    "set",
-    "--profile",
-    profileName,
-    "aws_secret_access_key",
-    creds.secretAccessKey
-  ], {});
-  await exec.exec("aws", [
-    "configure",
-    "set",
-    "--profile",
-    profileName,
-    "aws_session_token",
-    creds.sessionToken
-  ], {});
-  await exec.exec("aws", ["configure", "set", "--profile", profileName, "region", region], {});
+  const awsDir = path.join(os.homedir(), ".aws");
+  await import_promises.mkdir(awsDir, { recursive: true });
+  const credentialsPath = path.join(awsDir, "credentials");
+  const configPath = path.join(awsDir, "config");
+  const credentialsBlock = [
+    `[${profileName}]`,
+    `aws_access_key_id = ${creds.accessKeyId}`,
+    `aws_secret_access_key = ${creds.secretAccessKey}`,
+    `aws_session_token = ${creds.sessionToken}`
+  ].join(`
+`);
+  const configHeader = profileName === "default" ? "default" : `profile ${profileName}`;
+  const configBlock = [`[${configHeader}]`, `region = ${region}`].join(`
+`);
+  await appendToFile(credentialsPath, credentialsBlock);
+  await appendToFile(configPath, configBlock);
 }
 function exportEnvironment(prefix, region, profileName, creds) {
   core.exportVariable(`${prefix}ACCESS_KEY_ID`, creds.accessKeyId);

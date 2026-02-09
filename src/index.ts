@@ -1,12 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as core from "@actions/core";
-import * as exec from "@actions/exec";
 import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
 
 const DEFAULT_ENV_PREFIX = "__AWS__";
 const BASE_URL = "tracebit.com";
-const httpClient = new HttpClient("tracebit-github-action");
+const httpClient = new HttpClient("tracebit-github-action", [], {
+	socketTimeout: 500, // Make sure the request doesn't take longer than a second
+});
 
 function getInputFallback(name: string, required: boolean): string {
 	const value = core.getInput(name);
@@ -43,18 +47,16 @@ export type IssuedCredentials = {
 	sessionToken: string;
 };
 
-async function ensureCommandExists(command: string): Promise<void> {
-	const locator = core.platform.isWindows ? "where" : "which";
+async function appendToFile(filePath: string, content: string): Promise<void> {
+	const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
 	try {
-		const exitCode = await exec.exec(locator, [command], {
-			ignoreReturnCode: true,
-			silent: true,
-		});
-		if (exitCode !== 0) {
-			throw new Error(`Required tool ${command} could not be found.`);
+		await appendFile(filePath, `\n${normalizedContent}`, "utf8");
+	} catch (error) {
+		const err = error as NodeJS.ErrnoException;
+		if (err.code !== "ENOENT") {
+			throw err;
 		}
-	} catch {
-		throw new Error(`Required tool ${command} could not be found.`);
+		await writeFile(filePath, normalizedContent, "utf8");
 	}
 }
 
@@ -160,48 +162,25 @@ async function writeProfile(
 	region: string,
 	creds: IssuedCredentials,
 ): Promise<void> {
-	await ensureCommandExists("aws");
-	await exec.exec(
-		"aws",
-		[
-			"configure",
-			"set",
-			"--profile",
-			profileName,
-			"aws_access_key_id",
-			creds.accessKeyId,
-		],
-		{},
-	);
-	await exec.exec(
-		"aws",
-		[
-			"configure",
-			"set",
-			"--profile",
-			profileName,
-			"aws_secret_access_key",
-			creds.secretAccessKey,
-		],
-		{},
-	);
-	await exec.exec(
-		"aws",
-		[
-			"configure",
-			"set",
-			"--profile",
-			profileName,
-			"aws_session_token",
-			creds.sessionToken,
-		],
-		{},
-	);
-	await exec.exec(
-		"aws",
-		["configure", "set", "--profile", profileName, "region", region],
-		{},
-	);
+	const awsDir = path.join(os.homedir(), ".aws");
+	await mkdir(awsDir, { recursive: true });
+
+	const credentialsPath = path.join(awsDir, "credentials");
+	const configPath = path.join(awsDir, "config");
+
+	const credentialsBlock = [
+		`[${profileName}]`,
+		`aws_access_key_id = ${creds.accessKeyId}`,
+		`aws_secret_access_key = ${creds.secretAccessKey}`,
+		`aws_session_token = ${creds.sessionToken}`,
+	].join("\n");
+
+	const configHeader =
+		profileName === "default" ? "default" : `profile ${profileName}`;
+	const configBlock = [`[${configHeader}]`, `region = ${region}`].join("\n");
+
+	await appendToFile(credentialsPath, credentialsBlock);
+	await appendToFile(configPath, configBlock);
 }
 
 function exportEnvironment(
