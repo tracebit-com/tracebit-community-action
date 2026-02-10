@@ -9,7 +9,7 @@ import { HttpClient } from "@actions/http-client";
 const DEFAULT_ENV_PREFIX = "__AWS__";
 const BASE_URL = "tracebit.com";
 const httpClient = new HttpClient("tracebit-github-action", [], {
-	socketTimeout: 500, // Make sure the request doesn't take longer than a second
+	socketTimeout: 750, // Make sure the request doesn't take too long
 });
 
 function getInputFallback(name: string, required: boolean): string {

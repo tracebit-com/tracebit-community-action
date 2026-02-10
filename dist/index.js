@@ -22745,7 +22745,7 @@ var import_http_client = __toESM(require_lib(), 1);
 var DEFAULT_ENV_PREFIX = "__AWS__";
 var BASE_URL = "tracebit.com";
 var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
-  socketTimeout: 500
+  socketTimeout: 750
 });
 function getInputFallback(name, required) {
   const value = core.getInput(name);
