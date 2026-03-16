@@ -18,7 +18,7 @@ jobs:
           profile-region: us-east-1
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -43,7 +43,7 @@ jobs:
           profile-region: us-east-1
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -60,5 +60,7 @@ jobs:
         run: |
           if ! git diff --exit-code -- dist/index.js; then
             echo "Bundle is out of date. Run 'bun run build' and commit result."
+            BUN_VERSION=$(bun --version)
+            echo "You might need to 'bun upgrade' your local bun version to $BUN_VERSION before running 'bun run build'."
             exit 1
           fi
