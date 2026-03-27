@@ -8,6 +8,7 @@ This repository contains a Node.js GitHub Action that issues Tracebit AWS creden
 - `api-token` (required): Tracebit API token.
 - `profile` (required): AWS profile name to write.
 - `profile-region` (required): AWS region to configure for the profile.
+- `async` (optional): Run the action in the background without making the other steps wait for it to finish. Using this option creates a race condition where env variables might not be expored in time. We recommend you insert this action. We recommend inserting this action before any risky step in your workflow to reduce the risk of this happening.
 
 ## Outputs
 
@@ -22,14 +23,14 @@ Reference this action by repo and ref (tag/branch/sha):
 
 ```yaml
 - name: Issue credentials
-  # TODO: use sha here
-  uses: your-org/issue-credentials-action@main
+  uses: tracebit-com/tracebit-github-action@main
   continue-on-error: true
   with:
     customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
     api-token: ${{ secrets.SECURITY_API_TOKEN }}
     profile: administrator
     profile-region: us-east-1
+    async: true
 ```
 
 ## Enable in organization settings
@@ -65,6 +66,7 @@ INPUT_CUSTOMER_ID=your-customer-id
 INPUT_API_TOKEN=your-api-token
 INPUT_PROFILE=administrator
 INPUT_PROFILE_REGION=us-east-1
+INPUT_ASYNC=true
 
 npm run run:local
 # or
@@ -73,7 +75,7 @@ bun run run:local
 
 Notes:
 
-- Requires Node 20+ (for `fetch`).
+- Requires Node 24+.
 - The script uses the AWS CLI when writing the profile.
 - It makes real HTTP requests to the Tracebit API endpoints.
 

@@ -6,6 +6,11 @@ out
 dist
 *.tgz
 
+# release packages
+release/
+tracebit-github-action.tar.gz
+tracebit-github-action.zip
+
 # code coverage
 coverage
 *.lcov

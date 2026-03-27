@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -50,7 +50,8 @@ vi.mock("node:os", async () => {
 
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
-import { isValidRegion, run } from "../index";
+import { run } from "../index";
+import { isValidRegion } from "../inputs";
 
 const originalEnv = process.env;
 let tempHomeDir = "";
@@ -85,106 +86,68 @@ describe("action run", () => {
 		}
 	});
 
-	it("does not throw when issuing credentials fails", async () => {
+	it("does not throw when credentials path env var is not set", async () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
 			if (name === "profile") return "tracebit-profile";
 			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
 			return "";
 		});
 
-		postMock.mockResolvedValueOnce({
-			message: { statusCode: 500 },
-			readBody: async () => "issue failed",
-		});
+		process.env._SECURITY_CREDENTIALS_PATH = undefined;
 
 		await expect(run()).resolves.toBeUndefined();
 		expect(core.error).toHaveBeenCalled();
-		expect(postMock).toHaveBeenCalledTimes(1);
 	});
 
-	it("includes GitHub labels in the issue payload", async () => {
-		githubContext.ref = "refs/tags/v1.2.3";
-		githubContext.repo = { owner: "org", repo: "repo" };
-		githubContext.runId = 123;
-		githubContext.sha = "deadbeef";
-		githubContext.workflow = "workflow";
-		githubContext.job = "job";
-
+	it("exports credentials when credentials file exists", async () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
 			if (name === "profile") return "tracebit-profile";
 			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
 			return "";
 		});
 
-		postMock
-			.mockResolvedValueOnce({
-				message: { statusCode: 200 },
-				readBody: async () =>
-					JSON.stringify({
-						aws: {
-							awsConfirmationId: "confirm",
-							awsAccessKeyId: "access",
-							awsSecretAccessKey: "secret",
-							awsSessionToken: "token",
-						},
-					}),
-			})
-			.mockResolvedValueOnce({
-				message: { statusCode: 200 },
-				readBody: async () => "",
-			});
+		const credentialsPath = path.join(tempHomeDir, "credentials.json");
+		writeFileSync(
+			credentialsPath,
+			JSON.stringify({
+				confirmationId: "confirm",
+				accessKeyId: "access",
+				secretAccessKey: "secret",
+				sessionToken: "token",
+			}),
+		);
+		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
 
 		await run();
 
-		expect(postMock.mock.calls[0]?.[0]).toBe(
-			"https://customerx.tracebit.com/api/v1/credentials/issue-credentials",
-		);
-		const body = JSON.parse(String(postMock.mock.calls[0]?.[1] ?? "{}")) as {
-			labels: Array<{ name: string; value: string }>;
-		};
-		const labelMap = new Map(
-			body.labels.map((label) => [label.name, label.value]),
-		);
-
-		expect(labelMap.get("github.ref")).toBe("refs/tags/v1.2.3");
-		expect(labelMap.get("github.repo")).toBe("org/repo");
-		expect(labelMap.get("github.sha")).toBe("deadbeef");
+		expect(core.setOutput).toHaveBeenCalledWith("aws-access-key-id", "access");
 		expect(core.setOutput).toHaveBeenCalledWith(
-			"profile-name",
-			"tracebit-profile",
+			"aws-secret-access-key",
+			"secret",
 		);
+		expect(core.setOutput).toHaveBeenCalledWith("aws-session-token", "token");
 	});
 
-	it("does not throw when confirmation fails", async () => {
+	it("does not throw when credentials file does not exist", async () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
 			if (name === "profile") return "tracebit-profile";
 			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
 			return "";
 		});
 
-		postMock
-			.mockResolvedValueOnce({
-				message: { statusCode: 200 },
-				readBody: async () =>
-					JSON.stringify({
-						aws: {
-							awsConfirmationId: "confirm",
-							awsAccessKeyId: "access",
-							awsSecretAccessKey: "secret",
-							awsSessionToken: "token",
-						},
-					}),
-			})
-			.mockResolvedValueOnce({
-				message: { statusCode: 500 },
-				readBody: async () => "confirm failed",
-			});
+		process.env._SECURITY_CREDENTIALS_PATH = path.join(
+			tempHomeDir,
+			"nonexistent.json",
+		);
 
 		await expect(run()).resolves.toBeUndefined();
 		expect(core.error).toHaveBeenCalled();
@@ -194,7 +157,7 @@ describe("action run", () => {
 		vi.mocked(core.getInput).mockReturnValue("");
 
 		await expect(run()).resolves.toBeUndefined();
-		expect(core.warning).toHaveBeenCalled();
+		expect(core.setFailed).toHaveBeenCalled();
 		expect(postMock).not.toHaveBeenCalled();
 	});
 

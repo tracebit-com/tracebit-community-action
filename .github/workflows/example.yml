@@ -12,13 +12,13 @@ jobs:
 
       - name: Issue credentials
         continue-on-error: true
-        # uses: tracebit-com/tracebit-github-action@main
-        uses: ./.
+        uses: tracebit-com/tracebit-github-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
           profile-region: us-east-1
+          async: true
 
       - name: Show env
         run: printenv

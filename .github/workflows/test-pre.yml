@@ -1,0 +1,66 @@
+name: Test pre step
+
+on:
+  push:
+
+jobs:
+  test-pre-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Issue credentials
+        uses: tracebit-com/tracebit-github-action@main
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+
+      - name: Run pre step
+        run: node dist/pre.js
+        env:
+          INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
+          INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
+          INPUT_PROFILE: administrator
+          INPUT_PROFILE-REGION: us-east-1
+
+      - name: Show env
+        run: printenv
+
+      - name: Show aws config
+        run: |
+          cat ~/.aws/config
+          cat ~/.aws/credentials
+
+  test-pre-async:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Issue credentials
+        uses: tracebit-com/tracebit-github-action@main
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+
+      - name: Run pre step
+        run: node dist/pre.js
+        env:
+          INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
+          INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
+          INPUT_PROFILE: administrator
+          INPUT_PROFILE-REGION: us-east-1
+          async: true
+
+      - name: Show env
+        run: printenv
+
+      - name: Show aws config
+        run: |
+          cat ~/.aws/config
+          cat ~/.aws/credentials

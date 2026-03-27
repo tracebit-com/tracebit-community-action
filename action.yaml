@@ -6,8 +6,12 @@ inputs:
     description: "Customer ID"
     required: true
 
+  api-host:
+    description: "Domain name where the API is hosted"
+    required: false
+
   api-token:
-    description: "API token"
+    description: "API token used to authenticate with the API"
     required: true
 
   profile:
@@ -17,6 +21,10 @@ inputs:
   profile-region:
     description: "AWS region for the profile"
     required: true
+  
+  async:
+    description: "Run the action in the background without making the other steps wait for it to finish."
+    required: false
 
 outputs:
   aws-access-key-id:
@@ -30,4 +38,5 @@ outputs:
 
 runs:
   using: "node24"
+  pre: "dist/pre.js"
   main: "dist/index.js"
