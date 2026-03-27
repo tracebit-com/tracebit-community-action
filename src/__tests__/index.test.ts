@@ -9,6 +9,7 @@ vi.mock("@actions/core", () => ({
 	setOutput: vi.fn(),
 	setSecret: vi.fn(),
 	exportVariable: vi.fn(),
+	saveState: vi.fn(),
 	info: vi.fn(),
 	warning: vi.fn(),
 	error: vi.fn(),
@@ -126,12 +127,113 @@ describe("action run", () => {
 
 		await run();
 
+		// exportVariable: plain credentials
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__ACCESS_KEY_ID",
+			"access",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__SECRET_ACCESS_KEY",
+			"secret",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__SESSION_TOKEN",
+			"token",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__REGION",
+			"us-east-1",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__DEFAULT_REGION",
+			"us-east-1",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__PROFILE",
+			"tracebit-profile",
+		);
+
+		// exportVariable: JSON secret format
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__ACCESS_KEY_ID_SECRET",
+			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__SECRET_ACCESS_KEY_SECRET",
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__SESSION_TOKEN_SECRET",
+			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+		);
+
+		// setOutput: plain credentials
 		expect(core.setOutput).toHaveBeenCalledWith("aws-access-key-id", "access");
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"aws-secret-access-key",
 			"secret",
 		);
 		expect(core.setOutput).toHaveBeenCalledWith("aws-session-token", "token");
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"profile-name",
+			"tracebit-profile",
+		);
+
+		// setOutput: JSON secret format
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"aws-access-key-id-secret",
+			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+		);
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"aws-secret-access-key-secret",
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+		);
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"aws-session-token-secret",
+			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+		);
+
+		// saveState: plain credentials
+		expect(core.saveState).toHaveBeenCalledWith("aws-access-key-id", "access");
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-secret-access-key",
+			"secret",
+		);
+		expect(core.saveState).toHaveBeenCalledWith("aws-session-token", "token");
+		expect(core.saveState).toHaveBeenCalledWith(
+			"profile-name",
+			"tracebit-profile",
+		);
+
+		// saveState: JSON secret format
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-access-key-id-secret",
+			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+		);
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-secret-access-key-secret",
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+		);
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-session-token-secret",
+			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+		);
+
+		// setSecret: plain credentials
+		expect(core.setSecret).toHaveBeenCalledWith("access");
+		expect(core.setSecret).toHaveBeenCalledWith("secret");
+		expect(core.setSecret).toHaveBeenCalledWith("token");
+
+		// setSecret: JSON secret format
+		expect(core.setSecret).toHaveBeenCalledWith(
+			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+		);
+		expect(core.setSecret).toHaveBeenCalledWith(
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+		);
+		expect(core.setSecret).toHaveBeenCalledWith(
+			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+		);
 	});
 
 	it("does not throw when credentials file does not exist", async () => {

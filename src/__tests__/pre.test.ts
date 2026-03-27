@@ -182,9 +182,47 @@ describe("pre step", () => {
 
 			await run();
 
-			expect(core.setSecret).toHaveBeenCalledWith("access-key");
-			expect(core.setSecret).toHaveBeenCalledWith("secret-key");
-			expect(core.setSecret).toHaveBeenCalledWith("session-token");
+			// exportVariable: plain credentials
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__ACCESS_KEY_ID",
+				"access-key",
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__SECRET_ACCESS_KEY",
+				"secret-key",
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__SESSION_TOKEN",
+				"session-token",
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__REGION",
+				"us-east-1",
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__DEFAULT_REGION",
+				"us-east-1",
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__PROFILE",
+				"tracebit-profile",
+			);
+
+			// exportVariable: JSON secret format
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__ACCESS_KEY_ID_SECRET",
+				'"ACCESS_KEY_ID_SECRET":{"value":"access-key","isSecret":true}',
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__SECRET_ACCESS_KEY_SECRET",
+				'"SECRET_ACCESS_KEY_SECRET":{"value":"secret-key","isSecret":true}',
+			);
+			expect(core.exportVariable).toHaveBeenCalledWith(
+				"__AWS__SESSION_TOKEN_SECRET",
+				'"SESSION_TOKEN_SECRET":{"value":"session-token","isSecret":true}',
+			);
+
+			// setOutput: plain credentials
 			expect(core.setOutput).toHaveBeenCalledWith(
 				"aws-access-key-id",
 				"access-key",
@@ -197,13 +235,71 @@ describe("pre step", () => {
 				"aws-session-token",
 				"session-token",
 			);
-			expect(core.exportVariable).toHaveBeenCalledWith(
-				"__AWS__ACCESS_KEY_ID",
+			expect(core.setOutput).toHaveBeenCalledWith(
+				"profile-name",
+				"tracebit-profile",
+			);
+
+			// setOutput: JSON secret format
+			expect(core.setOutput).toHaveBeenCalledWith(
+				"aws-access-key-id-secret",
+				'"ACCESS_KEY_ID_SECRET":{"value":"access-key","isSecret":true}',
+			);
+			expect(core.setOutput).toHaveBeenCalledWith(
+				"aws-secret-access-key-secret",
+				'"SECRET_ACCESS_KEY_SECRET":{"value":"secret-key","isSecret":true}',
+			);
+			expect(core.setOutput).toHaveBeenCalledWith(
+				"aws-session-token-secret",
+				'"SESSION_TOKEN_SECRET":{"value":"session-token","isSecret":true}',
+			);
+
+			// saveState: plain credentials
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-access-key-id",
 				"access-key",
 			);
-			expect(core.exportVariable).toHaveBeenCalledWith(
-				"__AWS__REGION",
-				"us-east-1",
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-secret-access-key",
+				"secret-key",
+			);
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-session-token",
+				"session-token",
+			);
+			expect(core.saveState).toHaveBeenCalledWith(
+				"profile-name",
+				"tracebit-profile",
+			);
+
+			// saveState: JSON secret format
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-access-key-id-secret",
+				'"ACCESS_KEY_ID_SECRET":{"value":"access-key","isSecret":true}',
+			);
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-secret-access-key-secret",
+				'"SECRET_ACCESS_KEY_SECRET":{"value":"secret-key","isSecret":true}',
+			);
+			expect(core.saveState).toHaveBeenCalledWith(
+				"aws-session-token-secret",
+				'"SESSION_TOKEN_SECRET":{"value":"session-token","isSecret":true}',
+			);
+
+			// setSecret: plain credentials
+			expect(core.setSecret).toHaveBeenCalledWith("access-key");
+			expect(core.setSecret).toHaveBeenCalledWith("secret-key");
+			expect(core.setSecret).toHaveBeenCalledWith("session-token");
+
+			// setSecret: JSON secret format
+			expect(core.setSecret).toHaveBeenCalledWith(
+				'"ACCESS_KEY_ID_SECRET":{"value":"access-key","isSecret":true}',
+			);
+			expect(core.setSecret).toHaveBeenCalledWith(
+				'"SECRET_ACCESS_KEY_SECRET":{"value":"secret-key","isSecret":true}',
+			);
+			expect(core.setSecret).toHaveBeenCalledWith(
+				'"SESSION_TOKEN_SECRET":{"value":"session-token","isSecret":true}',
 			);
 		});
 	});

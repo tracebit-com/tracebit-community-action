@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as core from "@actions/core";
 import type { IssuedCredentials } from "./api";
-import { exportEnvironment } from "./deploy";
+import { populateGitHubVars } from "./deploy";
 import { getInputs } from "./inputs";
 import type { Inputs } from "./inputs";
 
@@ -28,26 +28,12 @@ function runSync(inputs: Inputs) {
 		fs.readFileSync(credentialsPath, "utf8"),
 	) as IssuedCredentials;
 
-	try {
-		exportEnvironment(
-			inputs.envPrefix,
-			inputs.region,
-			inputs.profileName,
-			credentials,
-		);
-	} catch (error) {
-		core.error(
-			`Export env failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-
-	core.setSecret(credentials.accessKeyId);
-	core.setSecret(credentials.secretAccessKey);
-	core.setSecret(credentials.sessionToken);
-
-	core.setOutput("aws-access-key-id", credentials.accessKeyId);
-	core.setOutput("aws-secret-access-key", credentials.secretAccessKey);
-	core.setOutput("aws-session-token", credentials.sessionToken);
+	populateGitHubVars(
+		inputs.envPrefix,
+		inputs.region,
+		inputs.profileName,
+		credentials,
+	);
 }
 
 export async function run(): Promise<void> {

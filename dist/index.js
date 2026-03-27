@@ -18839,13 +18839,67 @@ var core3 = __toESM(require_core(), 1);
 
 // src/deploy.ts
 var core = __toESM(require_core(), 1);
-function exportEnvironment(prefix, region, profileName, creds) {
-  core.exportVariable(`${prefix}ACCESS_KEY_ID`, creds.accessKeyId);
-  core.exportVariable(`${prefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
-  core.exportVariable(`${prefix}SESSION_TOKEN`, creds.sessionToken);
-  core.exportVariable(`${prefix}REGION`, region);
-  core.exportVariable(`${prefix}DEFAULT_REGION`, region);
-  core.exportVariable(`${prefix}PROFILE`, profileName);
+function safeExportVariable(name, value) {
+  try {
+    core.exportVariable(name, value);
+  } catch (error2) {
+    core.error(`Failed to export variable ${name}: ${error2}`);
+  }
+}
+function safeSetOutput(name, value) {
+  try {
+    core.setOutput(name, value);
+  } catch (error2) {
+    core.error(`Failed to set output ${name}: ${error2}`);
+  }
+}
+function safeSaveState(name, value) {
+  try {
+    core.saveState(name, value);
+  } catch (error2) {
+    core.error(`Failed to save state ${name}: ${error2}`);
+  }
+}
+function safeSetSecret(value) {
+  try {
+    core.setSecret(value);
+  } catch (error2) {
+    core.error(`Failed to set secret: ${error2}`);
+  }
+}
+function populateGitHubVars(envPrefix, region, profileName, creds) {
+  safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.accessKeyId);
+  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
+  safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.sessionToken);
+  safeExportVariable(`${envPrefix}REGION`, region);
+  safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
+  safeExportVariable(`${envPrefix}PROFILE`, profileName);
+  safeSetOutput("aws-access-key-id", creds.accessKeyId);
+  safeSetOutput("aws-secret-access-key", creds.secretAccessKey);
+  safeSetOutput("aws-session-token", creds.sessionToken);
+  safeSetOutput("profile-name", profileName);
+  safeSaveState("aws-access-key-id", creds.accessKeyId);
+  safeSaveState("aws-secret-access-key", creds.secretAccessKey);
+  safeSaveState("aws-session-token", creds.sessionToken);
+  safeSaveState("profile-name", profileName);
+  const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.accessKeyId}","isSecret":true}`;
+  const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.secretAccessKey}","isSecret":true}`;
+  const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.sessionToken}","isSecret":true}`;
+  safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
+  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
+  safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
+  safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
+  safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+  safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
+  safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
+  safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+  safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
+  safeSetSecret(creds.accessKeyId);
+  safeSetSecret(creds.secretAccessKey);
+  safeSetSecret(creds.sessionToken);
+  safeSetSecret(accessKeyIdSecretFormat);
+  safeSetSecret(secretAccessKeySecretFormat);
+  safeSetSecret(sessionTokenSecretFormat);
 }
 
 // src/inputs.ts
@@ -18909,24 +18963,14 @@ function runSync(inputs) {
     return;
   }
   const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
-  try {
-    exportEnvironment(inputs.envPrefix, inputs.region, inputs.profileName, credentials);
-  } catch (error2) {
-    core3.error(`Export env failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
-  }
-  core3.setSecret(credentials.accessKeyId);
-  core3.setSecret(credentials.secretAccessKey);
-  core3.setSecret(credentials.sessionToken);
-  core3.setOutput("aws-access-key-id", credentials.accessKeyId);
-  core3.setOutput("aws-secret-access-key", credentials.secretAccessKey);
-  core3.setOutput("aws-session-token", credentials.sessionToken);
+  populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, credentials);
 }
 async function run() {
   let inputs;
   try {
     inputs = getInputs();
-  } catch (error2) {
-    core3.setFailed(error2 instanceof Error ? error2.message : String(error2));
+  } catch (error3) {
+    core3.setFailed(error3 instanceof Error ? error3.message : String(error3));
     return;
   }
   if (inputs.runAsync) {
@@ -18935,7 +18979,7 @@ async function run() {
   printLogs();
 }
 if (require.main == module) {
-  run().catch((error2) => {
-    core3.setFailed(error2 instanceof Error ? error2.message : String(error2));
+  run().catch((error3) => {
+    core3.setFailed(error3 instanceof Error ? error3.message : String(error3));
   });
 }

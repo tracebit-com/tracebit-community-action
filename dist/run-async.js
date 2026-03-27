@@ -22850,8 +22850,8 @@ async function appendToFile(filePath, content) {
   try {
     await import_promises.appendFile(filePath, `
 ${normalizedContent}`, "utf8");
-  } catch (error) {
-    const err = error;
+  } catch (error2) {
+    const err = error2;
     if (err.code !== "ENOENT") {
       throw err;
     }
@@ -22931,24 +22931,24 @@ async function run() {
   let creds;
   try {
     creds = await issueCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId);
-  } catch (error2) {
-    core4.error(`Issue credentials failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Issue credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
     return;
   }
   fs.writeFileSync(credentialsPath, JSON.stringify(creds));
   try {
     await writeProfile(inputs.profileName, inputs.region, creds);
-  } catch (error2) {
-    core4.error(`Write profile failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Write profile failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
   }
   try {
     await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, creds?.confirmationId ?? "");
-  } catch (error2) {
-    core4.error(`Confirm credentials failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Confirm credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
   }
 }
 if (require.main == module) {
-  run().catch((error2) => {
-    core4.setFailed(error2 instanceof Error ? error2.message : String(error2));
+  run().catch((error3) => {
+    core4.setFailed(error3 instanceof Error ? error3.message : String(error3));
   });
 }

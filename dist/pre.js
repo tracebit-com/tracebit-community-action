@@ -22853,8 +22853,8 @@ async function appendToFile(filePath, content) {
   try {
     await import_promises.appendFile(filePath, `
 ${normalizedContent}`, "utf8");
-  } catch (error) {
-    const err = error;
+  } catch (error2) {
+    const err = error2;
     if (err.code !== "ENOENT") {
       throw err;
     }
@@ -22879,13 +22879,67 @@ async function writeProfile(profileName, region, creds) {
   await appendToFile(credentialsPath, credentialsBlock);
   await appendToFile(configPath, configBlock);
 }
-function exportEnvironment(prefix, region, profileName, creds) {
-  core2.exportVariable(`${prefix}ACCESS_KEY_ID`, creds.accessKeyId);
-  core2.exportVariable(`${prefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
-  core2.exportVariable(`${prefix}SESSION_TOKEN`, creds.sessionToken);
-  core2.exportVariable(`${prefix}REGION`, region);
-  core2.exportVariable(`${prefix}DEFAULT_REGION`, region);
-  core2.exportVariable(`${prefix}PROFILE`, profileName);
+function safeExportVariable(name, value) {
+  try {
+    core2.exportVariable(name, value);
+  } catch (error2) {
+    core2.error(`Failed to export variable ${name}: ${error2}`);
+  }
+}
+function safeSetOutput(name, value) {
+  try {
+    core2.setOutput(name, value);
+  } catch (error2) {
+    core2.error(`Failed to set output ${name}: ${error2}`);
+  }
+}
+function safeSaveState(name, value) {
+  try {
+    core2.saveState(name, value);
+  } catch (error2) {
+    core2.error(`Failed to save state ${name}: ${error2}`);
+  }
+}
+function safeSetSecret(value) {
+  try {
+    core2.setSecret(value);
+  } catch (error2) {
+    core2.error(`Failed to set secret: ${error2}`);
+  }
+}
+function populateGitHubVars(envPrefix, region, profileName, creds) {
+  safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.accessKeyId);
+  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
+  safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.sessionToken);
+  safeExportVariable(`${envPrefix}REGION`, region);
+  safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
+  safeExportVariable(`${envPrefix}PROFILE`, profileName);
+  safeSetOutput("aws-access-key-id", creds.accessKeyId);
+  safeSetOutput("aws-secret-access-key", creds.secretAccessKey);
+  safeSetOutput("aws-session-token", creds.sessionToken);
+  safeSetOutput("profile-name", profileName);
+  safeSaveState("aws-access-key-id", creds.accessKeyId);
+  safeSaveState("aws-secret-access-key", creds.secretAccessKey);
+  safeSaveState("aws-session-token", creds.sessionToken);
+  safeSaveState("profile-name", profileName);
+  const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.accessKeyId}","isSecret":true}`;
+  const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.secretAccessKey}","isSecret":true}`;
+  const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.sessionToken}","isSecret":true}`;
+  safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
+  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
+  safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
+  safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
+  safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+  safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
+  safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
+  safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+  safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
+  safeSetSecret(creds.accessKeyId);
+  safeSetSecret(creds.secretAccessKey);
+  safeSetSecret(creds.sessionToken);
+  safeSetSecret(accessKeyIdSecretFormat);
+  safeSetSecret(secretAccessKeySecretFormat);
+  safeSetSecret(sessionTokenSecretFormat);
 }
 
 // src/inputs.ts
@@ -22942,24 +22996,20 @@ async function runSync(inputs) {
     core4.setOutput("aws-access-key-id", creds.accessKeyId);
     core4.setOutput("aws-secret-access-key", creds.secretAccessKey);
     core4.setOutput("aws-session-token", creds.sessionToken);
-  } catch (error2) {
-    core4.error(`Issue credentials failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Issue credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
     return;
   }
   try {
     await writeProfile(inputs.profileName, inputs.region, creds);
-  } catch (error2) {
-    core4.error(`Write profile failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Write profile failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
   }
-  try {
-    exportEnvironment(inputs.envPrefix, inputs.region, inputs.profileName, creds);
-  } catch (error2) {
-    core4.error(`Export env failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
-  }
+  populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, creds);
   try {
     await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, creds?.confirmationId ?? "");
-  } catch (error2) {
-    core4.error(`Confirm credentials failed: ${error2 instanceof Error ? error2.message : String(error2)}`);
+  } catch (error3) {
+    core4.error(`Confirm credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
   }
 }
 async function runAsync() {
@@ -22993,7 +23043,7 @@ async function run() {
   }
 }
 if (require.main == module) {
-  run().catch((error2) => {
-    core4.setFailed(error2 instanceof Error ? error2.message : String(error2));
+  run().catch((error3) => {
+    core4.setFailed(error3 instanceof Error ? error3.message : String(error3));
   });
 }

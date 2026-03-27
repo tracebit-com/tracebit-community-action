@@ -8,7 +8,7 @@ import {
 	confirmCredentials,
 	issueCredentials,
 } from "./api";
-import { exportEnvironment, writeProfile } from "./deploy";
+import { populateGitHubVars, writeProfile } from "./deploy";
 import { type Inputs, getInputs } from "./inputs";
 
 async function runSync(inputs: Inputs): Promise<void> {
@@ -43,18 +43,12 @@ async function runSync(inputs: Inputs): Promise<void> {
 		);
 	}
 
-	try {
-		exportEnvironment(
-			inputs.envPrefix,
-			inputs.region,
-			inputs.profileName,
-			creds,
-		);
-	} catch (error) {
-		core.error(
-			`Export env failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	populateGitHubVars(
+		inputs.envPrefix,
+		inputs.region,
+		inputs.profileName,
+		creds,
+	);
 
 	try {
 		await confirmCredentials(
