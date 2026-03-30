@@ -4,7 +4,8 @@ description: Issue AWS credentials
 inputs:
   customer-id:
     description: "Customer ID"
-    required: true
+    required: false
+    default: "community"
 
   api-host:
     description: "Domain name where the API is hosted"

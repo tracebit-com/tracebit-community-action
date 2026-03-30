@@ -42,7 +42,7 @@ export interface Inputs {
 }
 
 export function getInputs(): Inputs {
-	const customerId = getInputFallback("customer-id", true);
+	const customerId = getInputFallback("customer-id", false, "community");
 	const apiHost = getInputFallback("api-host", false, DEFAULT_API_HOST);
 	const apiToken = getInputFallback("api-token", true);
 	const profileName = getInputFallback("profile", true);

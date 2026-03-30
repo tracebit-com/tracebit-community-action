@@ -22965,7 +22965,7 @@ function isValidRegion(region) {
   return /^[a-z]+-[a-z0-9-]+-\d+$/u.test(region);
 }
 function getInputs() {
-  const customerId = getInputFallback("customer-id", true);
+  const customerId = getInputFallback("customer-id", false, "community");
   const apiHost = getInputFallback("api-host", false, DEFAULT_API_HOST);
   const apiToken = getInputFallback("api-token", true);
   const profileName = getInputFallback("profile", true);
