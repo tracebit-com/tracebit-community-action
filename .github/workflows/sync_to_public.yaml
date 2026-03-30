@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - "*"
 
 jobs:
   sync:
@@ -19,9 +19,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0  # Full history needed for pushing
+          fetch-depth: 0 # Full history needed for pushing
           fetch-tags: true
-          persist-credentials: false  # Don't persist the default GITHUB_TOKEN
+          persist-credentials: false # Don't persist the default GITHUB_TOKEN
 
       - name: Configure Git
         run: |
@@ -36,4 +36,4 @@ jobs:
 
       - name: Push to public repository
         run: |
-          git push public ${{ github.ref }}
+          git push public ${{ github.ref }} --force
