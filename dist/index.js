@@ -18970,15 +18970,25 @@ function printLogs() {
   core3.info("Exporting AWS credentials to environment variables");
   core3.info("Successfully configured AWS credentials");
 }
-function runSync(inputs) {
-  const credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
-  if (credentialsPath === undefined) {
-    core3.error("_SECURITY_CREDENTIALS_PATH is not set");
-    return;
+async function populateGithubVars(inputs) {
+  const timeoutMs = 2000;
+  const retryIntervalMs = 100;
+  const deadline = Date.now() + timeoutMs;
+  let credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
+  while (credentialsPath === undefined) {
+    if (Date.now() >= deadline) {
+      core3.error(`_SECURITY_CREDENTIALS_PATH was not set within ${timeoutMs}ms`);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
+    credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
   }
-  if (!fs.existsSync(credentialsPath)) {
-    core3.error(`Credentials file does not exist, path: ${credentialsPath}`);
-    return;
+  while (!fs.existsSync(credentialsPath)) {
+    if (Date.now() >= deadline) {
+      core3.error(`Credentials file did not appear within ${timeoutMs}ms, path: ${credentialsPath}`);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
   }
   const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
   populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, credentials);
@@ -18992,7 +19002,7 @@ async function run() {
     return;
   }
   if (inputs.runAsync) {
-    runSync(inputs);
+    await populateGithubVars(inputs);
   }
   printLogs();
 }

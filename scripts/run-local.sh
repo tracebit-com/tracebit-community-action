@@ -106,8 +106,6 @@ node dist/pre.js
 source_github_env
 # WARN: the state gets passed only to the post step by the runner, not to the main step
 
-sleep 1
-
 echo -e "\n--------------------------------\n"
 
 echo -e "Running main step...\n"

@@ -12,16 +12,32 @@ function printLogs(): void {
 	core.info("Successfully configured AWS credentials");
 }
 
-function runSync(inputs: Inputs) {
-	const credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
-	if (credentialsPath === undefined) {
-		core.error("_SECURITY_CREDENTIALS_PATH is not set");
-		return;
+/* This function will wait until the creds are issued to deploy them or time out */
+async function populateGithubVars(inputs: Inputs): Promise<void> {
+	const timeoutMs = 2_000;
+	const retryIntervalMs = 100;
+	const deadline = Date.now() + timeoutMs;
+
+	let credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
+	while (credentialsPath === undefined) {
+		if (Date.now() >= deadline) {
+			core.error(
+				`_SECURITY_CREDENTIALS_PATH was not set within ${timeoutMs}ms`,
+			);
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
+		credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
 	}
 
-	if (!fs.existsSync(credentialsPath)) {
-		core.error(`Credentials file does not exist, path: ${credentialsPath}`);
-		return;
+	while (!fs.existsSync(credentialsPath)) {
+		if (Date.now() >= deadline) {
+			core.error(
+				`Credentials file did not appear within ${timeoutMs}ms, path: ${credentialsPath}`,
+			);
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
 	}
 
 	const credentials = JSON.parse(
@@ -46,7 +62,7 @@ export async function run(): Promise<void> {
 	}
 
 	if (inputs.runAsync) {
-		runSync(inputs);
+		await populateGithubVars(inputs);
 	}
 
 	printLogs();
