@@ -36,4 +36,4 @@ jobs:
 
       - name: Push to public repository
         run: |
-          git push public ${{ github.ref }} --force
+          git push public ${{ github.ref }}
