@@ -9,8 +9,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Issue credentials
-        uses: tracebit-com/tracebit-github-action@main
+      - name: Configure credentials
+        uses: tracebit-com/tracebit-community-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
@@ -34,8 +34,8 @@ jobs:
   bundle-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Issue credentials
-        uses: tracebit-com/tracebit-github-action@main
+      - name: Configure credentials
+        uses: tracebit-com/tracebit-community-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}

@@ -69,7 +69,7 @@ After registering, add the following to your repository or organization:
 Insert the action **before** any step that runs untrusted code (dependency installs, build scripts, test runners):
 
 ```yaml
-- name: Issue credentials
+- name: Configure credentials
   uses: tracebit-com/tracebit-community-action@main
   continue-on-error: true
   with:
@@ -96,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Issue credentials
+      - name: Configure credentials
         uses: tracebit-com/tracebit-community-action@main
         continue-on-error: true
         with:
@@ -137,6 +137,19 @@ To configure the credentials once for the whole organization:
 | `aws-secret-access-key` | The canary secret access key |
 | `aws-session-token` | The canary session token |
 | `profile-name` | The AWS profile name that was written |
+
+## Dependencies
+
+This action is intentionally minimal. The runtime `dependencies` (bundled into `dist/`) are all official GitHub Actions toolkit packages maintained by GitHub:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@actions/core` | 1.11.1 | Reads action inputs, sets outputs, masks secrets, and controls workflow annotations |
+| `@actions/exec` | 1.1.1 | Runs subprocesses (used to write the AWS credentials file) |
+| `@actions/github` | 6.0.1 | GitHub context (repo, workflow, run ID) passed to the Tracebit API |
+| `@actions/http-client` | 2.2.3 | Makes HTTP requests to the Tracebit API |
+
+No third-party runtime dependencies. The `devDependencies` (`typescript`, `vitest`, `@types/*`) are only used locally during development and are never present in the runner environment.
 
 ## Contributing
 

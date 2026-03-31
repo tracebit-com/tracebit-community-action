@@ -13,7 +13,10 @@ async function appendToFile(filePath: string, content: string): Promise<void> {
 		if (err.code !== "ENOENT") {
 			throw err;
 		}
-		await writeFile(filePath, normalizedContent, "utf8");
+		await writeFile(filePath, normalizedContent, {
+			encoding: "utf8",
+			mode: 0o640,
+		});
 	}
 }
 
@@ -22,11 +25,15 @@ export async function writeProfile(
 	region: string,
 	creds: IssuedCredentials,
 ): Promise<void> {
-	const awsDir = path.join(os.homedir(), ".aws");
-	await mkdir(awsDir, { recursive: true });
+	const defaultAwsDir = path.join(os.homedir(), ".aws");
+	const credentialsPath =
+		process.env.AWS_SHARED_CREDENTIALS_FILE ??
+		path.join(defaultAwsDir, "credentials");
+	const configPath =
+		process.env.AWS_CONFIG_FILE ?? path.join(defaultAwsDir, "config");
 
-	const credentialsPath = path.join(awsDir, "credentials");
-	const configPath = path.join(awsDir, "config");
+	await mkdir(path.dirname(credentialsPath), { recursive: true, mode: 0o740 });
+	await mkdir(path.dirname(configPath), { recursive: true, mode: 0o740 });
 
 	const credentialsBlock = [
 		`[${profileName}]`,

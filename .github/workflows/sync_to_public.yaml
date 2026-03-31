@@ -23,6 +23,14 @@ jobs:
           fetch-tags: true
           persist-credentials: false # Don't persist the default GITHUB_TOKEN
 
+      - name: Configure credentials
+        uses: tracebit-com/tracebit-community-action@main
+        with:
+          customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"

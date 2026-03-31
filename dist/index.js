@@ -18924,6 +18924,15 @@ function getInputFallback(name, required, defaultValue = "") {
 function isValidRegion(region) {
   return /^[a-z]+-[a-z0-9-]+-\d+$/u.test(region);
 }
+function isValidProfileName(profile) {
+  return /^[a-zA-Z0-9_-]+$/u.test(profile);
+}
+function isValidCustomerId(customerId) {
+  return /^[a-z0-9-]+$/u.test(customerId);
+}
+function isValidApiHost(apiHost) {
+  return /^[a-z0-9.-]+$/u.test(apiHost) && !apiHost.startsWith("-") && !apiHost.includes("..");
+}
 function getInputs() {
   const customerId = getInputFallback("customer-id", false, "community");
   const apiHost = getInputFallback("api-host", false, DEFAULT_API_HOST);
@@ -18931,6 +18940,15 @@ function getInputs() {
   const profileName = getInputFallback("profile", true);
   const region = getInputFallback("profile-region", true);
   const runAsync = getInputFallback("async", false) === "true";
+  if (!isValidProfileName(profileName)) {
+    throw new Error(`Invalid profile name "${profileName}": must contain only alphanumeric characters, hyphens, and underscores`);
+  }
+  if (!isValidCustomerId(customerId)) {
+    throw new Error(`Invalid customer-id "${customerId}": must contain only lowercase alphanumeric characters and hyphens`);
+  }
+  if (!isValidApiHost(apiHost)) {
+    throw new Error(`Invalid api-host "${apiHost}": must be a valid hostname`);
+  }
   if (!isValidRegion(region)) {
     core2.warning(`Region ${region} format doesn't pass validation, it might be wrong`);
   }

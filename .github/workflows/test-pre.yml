@@ -10,8 +10,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Issue credentials
-        uses: tracebit-com/tracebit-github-action@main
+      - name: Configure credentials
+        uses: tracebit-com/tracebit-community-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
@@ -27,6 +27,7 @@ jobs:
           INPUT_PROFILE-REGION: us-east-1
 
       - name: Show env
+        if: github.repository != 'tracebit-com/tracebit-community-action'
         run: printenv
 
       - name: Show aws config
@@ -40,8 +41,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Issue credentials
-        uses: tracebit-com/tracebit-github-action@main
+      - name: Configure credentials
+        uses: tracebit-com/tracebit-community-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
@@ -58,6 +59,7 @@ jobs:
           async: true
 
       - name: Show env
+        if: github.repository != 'tracebit-com/tracebit-community-action'
         run: printenv
 
       - name: Show aws config

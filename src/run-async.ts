@@ -7,6 +7,7 @@ import { getInputs } from "./inputs";
 
 export async function run(): Promise<void> {
 	const inputs = getInputs();
+	core.setSecret(inputs.apiToken);
 
 	const credentialsPath = process.env.CREDENTIALS_PATH;
 	if (credentialsPath === undefined) {

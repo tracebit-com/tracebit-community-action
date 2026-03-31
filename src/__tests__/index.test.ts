@@ -52,7 +52,12 @@ vi.mock("node:os", async () => {
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 import { run } from "../index";
-import { isValidRegion } from "../inputs";
+import {
+	isValidApiHost,
+	isValidCustomerId,
+	isValidProfileName,
+	isValidRegion,
+} from "../inputs";
 
 const originalEnv = process.env;
 let tempHomeDir = "";
@@ -67,6 +72,12 @@ describe("action run", () => {
 			...originalEnv,
 			HOME: tempHomeDir,
 			USERPROFILE: tempHomeDir,
+			AWS_CONFIG_FILE: path.join(tempHomeDir, ".aws", "config"),
+			AWS_SHARED_CREDENTIALS_FILE: path.join(
+				tempHomeDir,
+				".aws",
+				"credentials",
+			),
 		};
 		vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
 		vi.mocked(exec.exec).mockResolvedValue(0);
@@ -301,5 +312,58 @@ describe("isValidRegion", () => {
 	it("rejects invalid region formats", () => {
 		expect(isValidRegion("us_east_1")).toBe(false);
 		expect(isValidRegion("us-east")).toBe(false);
+	});
+});
+
+describe("isValidProfileName", () => {
+	it("accepts valid profile names", () => {
+		expect(isValidProfileName("default")).toBe(true);
+		expect(isValidProfileName("administrator")).toBe(true);
+		expect(isValidProfileName("my-profile")).toBe(true);
+		expect(isValidProfileName("my_profile")).toBe(true);
+		expect(isValidProfileName("Profile123")).toBe(true);
+	});
+
+	it("rejects profile names with INI injection characters", () => {
+		expect(isValidProfileName("profile]\naws_access_key_id=AKIA")).toBe(false);
+		expect(isValidProfileName("[injected")).toBe(false);
+		expect(isValidProfileName("profile name")).toBe(false);
+		expect(isValidProfileName("profile/name")).toBe(false);
+		expect(isValidProfileName("")).toBe(false);
+	});
+});
+
+describe("isValidCustomerId", () => {
+	it("accepts valid customer IDs", () => {
+		expect(isValidCustomerId("community")).toBe(true);
+		expect(isValidCustomerId("my-org")).toBe(true);
+		expect(isValidCustomerId("abc123")).toBe(true);
+	});
+
+	it("rejects customer IDs that could cause SSRF", () => {
+		expect(isValidCustomerId("evil.com/x?")).toBe(false);
+		expect(isValidCustomerId("evil.com")).toBe(false);
+		expect(isValidCustomerId("foo@bar")).toBe(false);
+		expect(isValidCustomerId("foo/bar")).toBe(false);
+		expect(isValidCustomerId("UPPERCASE")).toBe(false);
+		expect(isValidCustomerId("")).toBe(false);
+	});
+});
+
+describe("isValidApiHost", () => {
+	it("accepts valid hostnames", () => {
+		expect(isValidApiHost("tracebit.com")).toBe(true);
+		expect(isValidApiHost("api.tracebit.com")).toBe(true);
+		expect(isValidApiHost("staging.tracebit.io")).toBe(true);
+		expect(isValidApiHost("localhost")).toBe(true);
+	});
+
+	it("rejects hostnames with path traversal or injection", () => {
+		expect(isValidApiHost("evil.com/path")).toBe(false);
+		expect(isValidApiHost("evil.com:8080")).toBe(false);
+		expect(isValidApiHost("evil.com@tracebit.com")).toBe(false);
+		expect(isValidApiHost("-evil.com")).toBe(false);
+		expect(isValidApiHost("evil..com")).toBe(false);
+		expect(isValidApiHost("")).toBe(false);
 	});
 });

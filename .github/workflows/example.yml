@@ -10,9 +10,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Issue credentials
+      - name: Configure credentials
         continue-on-error: true
-        uses: tracebit-com/tracebit-github-action@main
+        uses: tracebit-com/tracebit-community-action@main
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
@@ -21,6 +21,7 @@ jobs:
           async: true
 
       - name: Show env
+        if: github.repository != 'tracebit-com/tracebit-community-action'
         run: printenv
 
       - name: Show aws config

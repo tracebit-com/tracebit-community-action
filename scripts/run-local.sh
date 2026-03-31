@@ -17,35 +17,16 @@ fi
 : "${INPUT_PROFILE_REGION:?Set INPUT_PROFILE_REGION}"
 : "${INPUT_ASYNC:?Set INPUT_ASYNC}"
 
-aws_dir="${HOME}/.aws"
-credentials_file="${aws_dir}/credentials"
-config_file="${aws_dir}/config"
-
-remove_profile_from_file() {
-  local file="$1"
-  local header="$2"
-  if [ ! -f "$file" ]; then
-    return
-  fi
-  local tmp_file
-  tmp_file="$(mktemp)"
-  awk -v target="$header" '
-    BEGIN { skip = 0 }
-    /^\[/ {
-      skip = ($0 == target) ? 1 : 0
-    }
-    { if (!skip) print }
-  ' "$file" > "$tmp_file"
-  mv "$tmp_file" "$file"
+# Use a temporary HOME so we never touch the real ~/.aws files
+FAKE_HOME="$(mktemp -d)"
+cleanup() {
+  rm -rf "$FAKE_HOME"
 }
+trap cleanup EXIT
 
-if [ "$INPUT_PROFILE" = "default" ]; then
-  remove_profile_from_file "$credentials_file" "[default]"
-  remove_profile_from_file "$config_file" "[default]"
-else
-  remove_profile_from_file "$credentials_file" "[$INPUT_PROFILE]"
-  remove_profile_from_file "$config_file" "[profile $INPUT_PROFILE]"
-fi
+export HOME="$FAKE_HOME"
+export AWS_CONFIG_FILE="$FAKE_HOME/.aws/config"
+export AWS_SHARED_CREDENTIALS_FILE="$FAKE_HOME/.aws/credentials"
 
 export GITHUB_REF="${GITHUB_REF:-refs/heads/main}"
 export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-local/tracebit-action}"
@@ -94,7 +75,7 @@ source_github_file() {
       if [ "$line" = "$delimiter" ]; then
         # Remove trailing newline from value if present
         value="${value%$'\n'}"
-        export "${prefix}${key}=$value"
+        export "${prefix}${key//-/_}=$value"
         in_value=false
         key=""
         value=""
@@ -148,3 +129,13 @@ echo -e "\n--------------------------------\n"
 
 echo -e "State file: $GITHUB_STATE\n"
 cat "$GITHUB_STATE"
+
+echo -e "\n--------------------------------\n"
+
+echo -e "AWS config ($AWS_CONFIG_FILE):\n"
+cat "$AWS_CONFIG_FILE" 2>/dev/null || echo "(not created)"
+
+echo -e "\n--------------------------------\n"
+
+echo -e "AWS credentials ($AWS_SHARED_CREDENTIALS_FILE):\n"
+cat "$AWS_SHARED_CREDENTIALS_FILE" 2>/dev/null || echo "(not created)"

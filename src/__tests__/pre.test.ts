@@ -98,6 +98,12 @@ describe("pre step", () => {
 			...originalEnv,
 			HOME: tempHomeDir,
 			USERPROFILE: tempHomeDir,
+			AWS_CONFIG_FILE: path.join(tempHomeDir, ".aws", "config"),
+			AWS_SHARED_CREDENTIALS_FILE: path.join(
+				tempHomeDir,
+				".aws",
+				"credentials",
+			),
 		};
 		vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
 		vi.mocked(exec.exec).mockResolvedValue(0);

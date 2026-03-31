@@ -100,6 +100,7 @@ async function runAsync(): Promise<void> {
 
 export async function run(): Promise<void> {
 	const inputs = getInputs();
+	core.setSecret(inputs.apiToken);
 
 	if (inputs.runAsync) {
 		core.info("Running asynchronously");

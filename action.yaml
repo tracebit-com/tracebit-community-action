@@ -1,5 +1,5 @@
-name: Issue credentials
-description: Issue AWS credentials
+name: Configure credentials
+description: Configure AWS credentials
 
 inputs:
   customer-id:
@@ -22,7 +22,7 @@ inputs:
   profile-region:
     description: "AWS region for the profile"
     required: true
-  
+
   async:
     description: "Run the action in the background without making the other steps wait for it to finish."
     required: false
