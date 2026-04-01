@@ -12,7 +12,7 @@ jobs:
 
       - name: Configure credentials
         continue-on-error: true
-        uses: tracebit-com/tracebit-community-action@main
+        uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}

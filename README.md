@@ -70,8 +70,7 @@ Insert the action **before** any step that runs untrusted code (dependency insta
 
 ```yaml
 - name: Configure credentials
-  uses: tracebit-com/tracebit-community-action@main
-  continue-on-error: true
+  uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
   with:
     api-token: ${{ secrets.SECURITY_API_TOKEN }}
     profile: administrator
@@ -79,7 +78,7 @@ Insert the action **before** any step that runs untrusted code (dependency insta
     async: true
 ```
 
-`continue-on-error: true` ensures a Tracebit outage never blocks your pipeline but should not be necessary.
+Optionally use `continue-on-error: true` to ensure a Tracebit outage never blocks your pipeline but should not be necessary as if configured correctly the action will warn and not error.
 
 ### Full workflow example
 
@@ -97,8 +96,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Configure credentials
-        uses: tracebit-com/tracebit-community-action@main
-        continue-on-error: true
+        uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
         with:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator

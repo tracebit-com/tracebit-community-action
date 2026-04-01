@@ -1,5 +1,5 @@
-name: Configure credentials
-description: Configure AWS credentials
+name: Tracebit Configure Credentials
+description: Tracebit Configure AWS Credentials
 
 inputs:
   customer-id:

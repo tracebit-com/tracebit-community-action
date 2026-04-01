@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false # Don't persist the default GITHUB_TOKEN
 
       - name: Configure credentials
-        uses: tracebit-com/tracebit-community-action@main
+        uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
