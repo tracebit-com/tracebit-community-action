@@ -1,10 +1,10 @@
-name: Test pre step
+name: Test Action
 
 on:
   push:
 
 jobs:
-  test-pre-sync:
+  test-sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,8 +23,19 @@ jobs:
         env:
           INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
           INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
-          INPUT_PROFILE: administrator
+          INPUT_PROFILE: engineer
           INPUT_PROFILE-REGION: us-east-1
+
+      - name: Run main step
+        run: sleep 2 && node dist/index.js
+        env:
+          INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
+          INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
+          INPUT_PROFILE: engineer
+          INPUT_PROFILE-REGION: us-east-1
+
+      - name: Run post step
+        run: node dist/post.js
 
       - name: Show env
         if: github.repository != 'tracebit-com/tracebit-community-action'
@@ -35,7 +46,7 @@ jobs:
           cat ~/.aws/config
           cat ~/.aws/credentials
 
-  test-pre-async:
+  test-async:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -54,9 +65,21 @@ jobs:
         env:
           INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
           INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
-          INPUT_PROFILE: administrator
+          INPUT_PROFILE: engineer
           INPUT_PROFILE-REGION: us-east-1
-          async: true
+          INPUT_ASYNC: true
+
+      - name: Run main step
+        run: sleep 2 && node dist/index.js
+        env:
+          INPUT_CUSTOMER-ID: ${{ vars.SECURITY_CUSTOMER_ID }}
+          INPUT_API-TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
+          INPUT_PROFILE: engineer
+          INPUT_PROFILE-REGION: us-east-1
+          INPUT_ASYNC: true
+
+      - name: Run post step
+        run: node dist/post.js
 
       - name: Show env
         if: github.repository != 'tracebit-com/tracebit-community-action'

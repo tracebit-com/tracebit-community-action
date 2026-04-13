@@ -4,12 +4,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as core from "@actions/core";
 import {
-	type IssuedCredentials,
 	confirmCredentials,
+	type IssuedCredentials,
 	issueCredentials,
 } from "./api";
 import { populateGitHubVars, writeProfile } from "./deploy";
-import { type Inputs, getInputs } from "./inputs";
+import { getInputs, type Inputs } from "./inputs";
 
 async function runSync(inputs: Inputs): Promise<void> {
 	let creds: IssuedCredentials;
@@ -29,7 +29,7 @@ async function runSync(inputs: Inputs): Promise<void> {
 		core.setOutput("aws-secret-access-key", creds.secretAccessKey);
 		core.setOutput("aws-session-token", creds.sessionToken);
 	} catch (error) {
-		core.error(
+		core.warning(
 			`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		return;
@@ -38,7 +38,7 @@ async function runSync(inputs: Inputs): Promise<void> {
 	try {
 		await writeProfile(inputs.profileName, inputs.region, creds);
 	} catch (error) {
-		core.error(
+		core.warning(
 			`Write profile failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
@@ -58,7 +58,7 @@ async function runSync(inputs: Inputs): Promise<void> {
 			creds?.confirmationId ?? "",
 		);
 	} catch (error) {
-		core.error(
+		core.warning(
 			`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
@@ -69,6 +69,7 @@ async function runAsync(): Promise<void> {
 		os.tmpdir(),
 		`credentials-${randomUUID()}.json`,
 	);
+	core.exportVariable("_SECURITY_CREDENTIALS_PATH", credentialsPath);
 
 	// Get the directory of the currently executing script at runtime
 	// This avoids issues with bundlers hardcoding __dirname at build time
@@ -85,7 +86,7 @@ async function runAsync(): Promise<void> {
 	});
 
 	if (child.pid === undefined) {
-		core.error(
+		core.warning(
 			`Failed to run the step asynchronously (exit code: ${child.exitCode})`,
 		);
 		return;
@@ -94,7 +95,6 @@ async function runAsync(): Promise<void> {
 	child.disconnect();
 	child.unref();
 
-	core.exportVariable("_SECURITY_CREDENTIALS_PATH", credentialsPath);
 	core.saveState("async_pid", child.pid.toString());
 }
 

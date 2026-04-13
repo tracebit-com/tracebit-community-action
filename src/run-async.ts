@@ -1,7 +1,10 @@
 import * as fs from "node:fs";
 import * as core from "@actions/core";
-import { type IssuedCredentials, issueCredentials } from "./api";
-import { confirmCredentials } from "./api";
+import {
+	confirmCredentials,
+	type IssuedCredentials,
+	issueCredentials,
+} from "./api";
 import { writeProfile } from "./deploy";
 import { getInputs } from "./inputs";
 
@@ -11,9 +14,11 @@ export async function run(): Promise<void> {
 
 	const credentialsPath = process.env.CREDENTIALS_PATH;
 	if (credentialsPath === undefined) {
-		core.error("CREDENTIALS_PATH is not set");
+		core.warning("CREDENTIALS_PATH is not set");
 		return;
 	}
+
+	const errorPath = `${credentialsPath}.error`;
 
 	let creds: IssuedCredentials;
 
@@ -24,9 +29,9 @@ export async function run(): Promise<void> {
 			inputs.customerId,
 		);
 	} catch (error) {
-		core.error(
-			`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
+		const message = `Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+		fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+		core.warning(message);
 		return;
 	}
 
@@ -35,9 +40,9 @@ export async function run(): Promise<void> {
 	try {
 		await writeProfile(inputs.profileName, inputs.region, creds);
 	} catch (error) {
-		core.error(
-			`Write profile failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
+		const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
+		fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+		core.warning(message);
 	}
 
 	try {
@@ -48,9 +53,9 @@ export async function run(): Promise<void> {
 			creds?.confirmationId ?? "",
 		);
 	} catch (error) {
-		core.error(
-			`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
+		const message = `Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+		fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+		core.warning(message);
 	}
 }
 

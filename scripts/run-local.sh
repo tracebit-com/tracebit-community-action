@@ -115,6 +115,14 @@ source_github_state
 
 echo -e "\n--------------------------------\n"
 
+if [ "${INPUT_ASYNC}" = "true" ]; then
+  echo -e "Running post step...\n"
+  node dist/post.js
+  source_github_env
+fi
+
+echo -e "\n--------------------------------\n"
+
 echo -e "Outputs file: $GITHUB_OUTPUT\n"
 cat "$GITHUB_OUTPUT"
 

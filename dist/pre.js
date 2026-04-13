@@ -22760,8 +22760,9 @@ var import_node_crypto = require("node:crypto");
 var core = __toESM(require_core(), 1);
 var import_github = __toESM(require_github(), 1);
 var import_http_client = __toESM(require_lib(), 1);
+var requestTimeout = 2000;
 var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
-  socketTimeout: 2000
+  socketTimeout: requestTimeout
 });
 function getGithubContext() {
   return {
@@ -22853,8 +22854,8 @@ async function appendToFile(filePath, content) {
   try {
     await import_promises.appendFile(filePath, `
 ${normalizedContent}`, "utf8");
-  } catch (error2) {
-    const err = error2;
+  } catch (error) {
+    const err = error;
     if (err.code !== "ENOENT") {
       throw err;
     }
@@ -22886,29 +22887,29 @@ async function writeProfile(profileName, region, creds) {
 function safeExportVariable(name, value) {
   try {
     core2.exportVariable(name, value);
-  } catch (error2) {
-    core2.error(`Failed to export variable ${name}: ${error2}`);
+  } catch (error) {
+    core2.warning(`Failed to export variable ${name}: ${error}`);
   }
 }
 function safeSetOutput(name, value) {
   try {
     core2.setOutput(name, value);
-  } catch (error2) {
-    core2.error(`Failed to set output ${name}: ${error2}`);
+  } catch (error) {
+    core2.warning(`Failed to set output ${name}: ${error}`);
   }
 }
 function safeSaveState(name, value) {
   try {
     core2.saveState(name, value);
-  } catch (error2) {
-    core2.error(`Failed to save state ${name}: ${error2}`);
+  } catch (error) {
+    core2.warning(`Failed to save state ${name}: ${error}`);
   }
 }
 function safeSetSecret(value) {
   try {
     core2.setSecret(value);
-  } catch (error2) {
-    core2.error(`Failed to set secret: ${error2}`);
+  } catch (error) {
+    core2.warning(`Failed to set secret: ${error}`);
   }
 }
 function populateGitHubVars(envPrefix, region, profileName, creds) {
@@ -23018,24 +23019,25 @@ async function runSync(inputs) {
     core4.setOutput("aws-access-key-id", creds.accessKeyId);
     core4.setOutput("aws-secret-access-key", creds.secretAccessKey);
     core4.setOutput("aws-session-token", creds.sessionToken);
-  } catch (error3) {
-    core4.error(`Issue credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
+  } catch (error) {
+    core4.warning(`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
   try {
     await writeProfile(inputs.profileName, inputs.region, creds);
-  } catch (error3) {
-    core4.error(`Write profile failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
+  } catch (error) {
+    core4.warning(`Write profile failed: ${error instanceof Error ? error.message : String(error)}`);
   }
   populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, creds);
   try {
     await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, creds?.confirmationId ?? "");
-  } catch (error3) {
-    core4.error(`Confirm credentials failed: ${error3 instanceof Error ? error3.message : String(error3)}`);
+  } catch (error) {
+    core4.warning(`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 async function runAsync() {
   const credentialsPath = path2.join(os2.tmpdir(), `credentials-${import_node_crypto2.randomUUID()}.json`);
+  core4.exportVariable("_SECURITY_CREDENTIALS_PATH", credentialsPath);
   const currentDir = path2.dirname(process.argv[1]);
   const runAsyncPath = path2.join(currentDir, "run-async.js");
   const child = child_process.fork(runAsyncPath, [], {
@@ -23047,12 +23049,11 @@ async function runAsync() {
     stdio: "ignore"
   });
   if (child.pid === undefined) {
-    core4.error(`Failed to run the step asynchronously (exit code: ${child.exitCode})`);
+    core4.warning(`Failed to run the step asynchronously (exit code: ${child.exitCode})`);
     return;
   }
   child.disconnect();
   child.unref();
-  core4.exportVariable("_SECURITY_CREDENTIALS_PATH", credentialsPath);
   core4.saveState("async_pid", child.pid.toString());
 }
 async function run() {
@@ -23066,7 +23067,7 @@ async function run() {
   }
 }
 if (require.main == module) {
-  run().catch((error3) => {
-    core4.setFailed(error3 instanceof Error ? error3.message : String(error3));
+  run().catch((error) => {
+    core4.setFailed(error instanceof Error ? error.message : String(error));
   });
 }

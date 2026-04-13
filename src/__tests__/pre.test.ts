@@ -133,7 +133,7 @@ describe("pre step", () => {
 			});
 
 			await expect(run()).resolves.toBeUndefined();
-			expect(core.error).toHaveBeenCalled();
+			expect(core.warning).toHaveBeenCalled();
 			expect(postMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -147,7 +147,7 @@ describe("pre step", () => {
 				});
 
 			await expect(run()).resolves.toBeUndefined();
-			expect(core.error).toHaveBeenCalled();
+			expect(core.warning).toHaveBeenCalled();
 		});
 
 		it("includes GitHub labels in the issue payload", async () => {
@@ -346,8 +346,8 @@ describe("pre step", () => {
 			forkMock.mockReturnValue({ pid: undefined, exitCode: 1 });
 
 			await expect(run()).resolves.toBeUndefined();
-			expect(core.error).toHaveBeenCalled();
-			expect(core.exportVariable).not.toHaveBeenCalled();
+			expect(core.warning).toHaveBeenCalled();
+			expect(core.exportVariable).toHaveBeenCalled();
 		});
 	});
 });

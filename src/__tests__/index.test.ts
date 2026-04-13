@@ -99,6 +99,7 @@ describe("action run", () => {
 	});
 
 	it("does not throw when credentials path env var is not set", async () => {
+		vi.useFakeTimers();
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
@@ -110,8 +111,11 @@ describe("action run", () => {
 
 		process.env._SECURITY_CREDENTIALS_PATH = undefined;
 
-		await expect(run()).resolves.toBeUndefined();
-		expect(core.error).toHaveBeenCalled();
+		const promise = run();
+		await vi.advanceTimersByTimeAsync(3000);
+		await expect(promise).resolves.toBeUndefined();
+		expect(core.warning).toHaveBeenCalled();
+		vi.useRealTimers();
 	});
 
 	it("exports credentials when credentials file exists", async () => {
@@ -248,6 +252,7 @@ describe("action run", () => {
 	});
 
 	it("does not throw when credentials file does not exist", async () => {
+		vi.useFakeTimers();
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
 			if (name === "api-token") return "token";
@@ -262,8 +267,11 @@ describe("action run", () => {
 			"nonexistent.json",
 		);
 
-		await expect(run()).resolves.toBeUndefined();
-		expect(core.error).toHaveBeenCalled();
+		const promise = run();
+		await vi.advanceTimersByTimeAsync(3000);
+		await expect(promise).resolves.toBeUndefined();
+		expect(core.warning).toHaveBeenCalled();
+		vi.useRealTimers();
 	});
 
 	it("does not throw when required inputs are missing", async () => {

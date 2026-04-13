@@ -3,8 +3,10 @@ import * as core from "@actions/core";
 import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
 
+export const requestTimeout = 2_000;
+
 const httpClient = new HttpClient("tracebit-github-action", [], {
-	socketTimeout: 2_000, // Make sure the request doesn't take too long
+	socketTimeout: requestTimeout, // Make sure the request doesn't take too long
 });
 
 function getGithubContext() {

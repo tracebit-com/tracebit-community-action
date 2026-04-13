@@ -4,7 +4,7 @@
 	"private": true,
 	"main": "dist/index.js",
 	"scripts": {
-		"build": "bun build src/index.ts --target=node --format=cjs --outdir=dist && bun build src/pre.ts --target=node --format=cjs --outdir=dist && bun build src/run-async.ts --target=node --format=cjs --outdir=dist",
+		"build": "bun build src/index.ts --target=node --format=cjs --outdir=dist && bun build src/pre.ts --target=node --format=cjs --outdir=dist && bun build src/run-async.ts --target=node --format=cjs --outdir=dist && bun build src/post.ts --target=node --format=cjs --outdir=dist",
 		"run:local": "bash scripts/run-local.sh",
 		"format": "biome check --write",
 		"format-fix": "biome check --fix --unsafe",

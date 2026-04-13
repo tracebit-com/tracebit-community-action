@@ -55,7 +55,7 @@ function safeExportVariable(name: string, value: string): void {
 	try {
 		core.exportVariable(name, value);
 	} catch (error) {
-		core.error(`Failed to export variable ${name}: ${error}`);
+		core.warning(`Failed to export variable ${name}: ${error}`);
 	}
 }
 
@@ -63,7 +63,7 @@ function safeSetOutput(name: string, value: string): void {
 	try {
 		core.setOutput(name, value);
 	} catch (error) {
-		core.error(`Failed to set output ${name}: ${error}`);
+		core.warning(`Failed to set output ${name}: ${error}`);
 	}
 }
 
@@ -71,7 +71,7 @@ function safeSaveState(name: string, value: string): void {
 	try {
 		core.saveState(name, value);
 	} catch (error) {
-		core.error(`Failed to save state ${name}: ${error}`);
+		core.warning(`Failed to save state ${name}: ${error}`);
 	}
 }
 
@@ -79,7 +79,7 @@ function safeSetSecret(value: string): void {
 	try {
 		core.setSecret(value);
 	} catch (error) {
-		core.error(`Failed to set secret: ${error}`);
+		core.warning(`Failed to set secret: ${error}`);
 	}
 }
 

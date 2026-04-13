@@ -1,28 +1,24 @@
 import * as fs from "node:fs";
 import * as core from "@actions/core";
-import type { IssuedCredentials } from "./api";
+import * as api from "./api";
 import { populateGitHubVars } from "./deploy";
-import { getInputs } from "./inputs";
 import type { Inputs } from "./inputs";
+import { getInputs } from "./inputs";
 
 function printLogs(): void {
 	core.info("Configuring AWS credentials");
-	core.info("Writing AWS credentials to file");
-	core.info("Exporting AWS credentials to environment variables");
-	core.info("Successfully configured AWS credentials");
 }
 
 /* This function will wait until the creds are issued to deploy them or time out */
-async function populateGithubVars(inputs: Inputs): Promise<void> {
-	const timeoutMs = 2_000;
+async function waitAndDeployCreds(inputs: Inputs): Promise<void> {
 	const retryIntervalMs = 100;
-	const deadline = Date.now() + timeoutMs;
+	const deadline = Date.now() + api.requestTimeout;
 
 	let credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
-	while (credentialsPath === undefined) {
+	while (credentialsPath === undefined || !fs.existsSync(credentialsPath)) {
 		if (Date.now() >= deadline) {
-			core.error(
-				`_SECURITY_CREDENTIALS_PATH was not set within ${timeoutMs}ms`,
+			core.warning(
+				`Credentials were not generated within ${api.requestTimeout}ms, path: ${credentialsPath ?? "not set"}. Please look at "Post Configure Credentials" step for the reason.`,
 			);
 			return;
 		}
@@ -30,19 +26,9 @@ async function populateGithubVars(inputs: Inputs): Promise<void> {
 		credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
 	}
 
-	while (!fs.existsSync(credentialsPath)) {
-		if (Date.now() >= deadline) {
-			core.error(
-				`Credentials file did not appear within ${timeoutMs}ms, path: ${credentialsPath}`,
-			);
-			return;
-		}
-		await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
-	}
-
 	const credentials = JSON.parse(
 		fs.readFileSync(credentialsPath, "utf8"),
-	) as IssuedCredentials;
+	) as api.IssuedCredentials;
 
 	populateGitHubVars(
 		inputs.envPrefix,
@@ -62,7 +48,7 @@ export async function run(): Promise<void> {
 	}
 
 	if (inputs.runAsync) {
-		await populateGithubVars(inputs);
+		await waitAndDeployCreds(inputs);
 	}
 
 	printLogs();
