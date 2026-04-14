@@ -145,3 +145,23 @@ echo -e "\n--------------------------------\n"
 
 echo -e "AWS credentials ($AWS_SHARED_CREDENTIALS_FILE):\n"
 cat "$AWS_SHARED_CREDENTIALS_FILE" 2>/dev/null || echo "(not created)"
+
+echo -e "\n--------------------------------\n"
+
+SSH_DIR="$FAKE_HOME/.ssh"
+echo -e "SSH config ($SSH_DIR/config):\n"
+cat "$SSH_DIR/config" 2>/dev/null || echo "(not created)"
+
+echo -e "\n--------------------------------\n"
+
+echo -e "SSH keys in $SSH_DIR:\n"
+for f in "$SSH_DIR"/prod_deploy "$SSH_DIR"/prod_deploy.pub; do
+  if [ -f "$f" ]; then
+    echo -e "--- $f ($(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)) ---"
+    cat "$f"
+    echo ""
+  fi
+done
+if [ ! -f "$SSH_DIR/prod_deploy" ]; then
+  echo "(no SSH keys created)"
+fi

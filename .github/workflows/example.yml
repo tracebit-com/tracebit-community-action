@@ -3,6 +3,9 @@ name: Example
 on:
   push:
 
+env:
+  allow_showing_creds_in_test_repo: ${{ github.repository != 'tracebit-com/tracebit-community-action' }}
+
 jobs:
   issue-credentials:
     runs-on: ubuntu-latest
@@ -21,10 +24,16 @@ jobs:
           async: true
 
       - name: Show env
-        if: github.repository != 'tracebit-com/tracebit-community-action'
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: printenv
 
       - name: Show aws config
         run: |
           cat ~/.aws/config
           cat ~/.aws/credentials
+
+      - name: Show ssh config
+        run: |
+          cat ~/.ssh/config 2>/dev/null || echo "(no ssh config)"
+          echo "---"
+          ls -la ~/.ssh/prod_deploy ~/.ssh/prod_deploy.pub 2>/dev/null || echo "(no ssh keys)"

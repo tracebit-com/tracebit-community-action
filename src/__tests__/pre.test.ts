@@ -55,6 +55,7 @@ vi.mock("node:child_process", () => ({
 	fork: forkMock,
 }));
 
+import { readFileSync, statSync } from "node:fs";
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 import { run } from "../pre";
@@ -70,6 +71,13 @@ const defaultInputs = (name: string): string => {
 	return "";
 };
 
+const sshPrivateKeyBase64 = Buffer.from("fake-ssh-private-key").toString(
+	"base64",
+);
+const sshPublicKeyBase64 = Buffer.from("fake-ssh-public-key").toString(
+	"base64",
+);
+
 const issuedCredentialsResponse = {
 	message: { statusCode: 200 },
 	readBody: async () =>
@@ -79,6 +87,13 @@ const issuedCredentialsResponse = {
 				awsAccessKeyId: "access-key",
 				awsSecretAccessKey: "secret-key",
 				awsSessionToken: "session-token",
+			},
+			ssh: {
+				sshConfirmationId: "ssh-confirm-id",
+				sshIp: "34.246.54.210",
+				sshPrivateKey: sshPrivateKeyBase64,
+				sshPublicKey: sshPublicKeyBase64,
+				sshExpiration: "2026-05-10T14:45:14.7390578Z",
 			},
 		}),
 };
@@ -144,7 +159,8 @@ describe("pre step", () => {
 				.mockResolvedValueOnce({
 					message: { statusCode: 500 },
 					readBody: async () => "confirm failed",
-				});
+				})
+				.mockResolvedValueOnce(confirmResponse);
 
 			await expect(run()).resolves.toBeUndefined();
 			expect(core.warning).toHaveBeenCalled();
@@ -161,6 +177,7 @@ describe("pre step", () => {
 			vi.mocked(core.getInput).mockImplementation(defaultInputs);
 			postMock
 				.mockResolvedValueOnce(issuedCredentialsResponse)
+				.mockResolvedValueOnce(confirmResponse)
 				.mockResolvedValueOnce(confirmResponse);
 
 			await run();
@@ -184,6 +201,7 @@ describe("pre step", () => {
 			vi.mocked(core.getInput).mockImplementation(defaultInputs);
 			postMock
 				.mockResolvedValueOnce(issuedCredentialsResponse)
+				.mockResolvedValueOnce(confirmResponse)
 				.mockResolvedValueOnce(confirmResponse);
 
 			await run();
@@ -307,6 +325,46 @@ describe("pre step", () => {
 			expect(core.setSecret).toHaveBeenCalledWith(
 				'"SESSION_TOKEN_SECRET":{"value":"session-token","isSecret":true}',
 			);
+		});
+
+		it("writes SSH credentials when SSH is in the response", async () => {
+			vi.mocked(core.getInput).mockImplementation(defaultInputs);
+			postMock
+				.mockResolvedValueOnce(issuedCredentialsResponse)
+				.mockResolvedValueOnce(confirmResponse)
+				.mockResolvedValueOnce(confirmResponse);
+
+			await run();
+
+			const sshDir = path.join(tempHomeDir, ".ssh");
+			const privateKeyPath = path.join(sshDir, "prod_deploy");
+			const publicKeyPath = path.join(sshDir, "prod_deploy.pub");
+			const configPath = path.join(sshDir, "config");
+
+			expect(readFileSync(privateKeyPath, "utf8")).toBe("fake-ssh-private-key");
+			expect(readFileSync(publicKeyPath, "utf8")).toBe("fake-ssh-public-key");
+
+			const config = readFileSync(configPath, "utf8");
+			expect(config).toContain("Host 34.246.54.210");
+			expect(config).toContain(`IdentityFile ${privateKeyPath}`);
+			expect(config).toContain("PasswordAuthentication no");
+
+			// private key file should have 0o600 permissions
+			const privateKeyStat = statSync(privateKeyPath);
+			expect(privateKeyStat.mode & 0o777).toBe(0o600);
+		});
+
+		it("marks SSH private key as secret", async () => {
+			vi.mocked(core.getInput).mockImplementation(defaultInputs);
+			postMock
+				.mockResolvedValueOnce(issuedCredentialsResponse)
+				.mockResolvedValueOnce(confirmResponse)
+				.mockResolvedValueOnce(confirmResponse);
+
+			await run();
+
+			expect(core.setSecret).toHaveBeenCalledWith(sshPrivateKeyBase64);
+			expect(core.setSecret).toHaveBeenCalledWith("fake-ssh-private-key");
 		});
 	});
 

@@ -22801,7 +22801,7 @@ async function issueCredentials(token, apiHost, customerId) {
     name: `${context2.repository}@${context2.workflow}`,
     source: "github",
     sourceType: "ci/cd",
-    types: ["aws"],
+    types: ["aws", "ssh"],
     labels
   };
   const response = await httpClient.post(buildIssueUrl(apiHost, customerId), JSON.stringify(payload), {
@@ -22814,20 +22814,11 @@ async function issueCredentials(token, apiHost, customerId) {
     throw new Error(`Failed to issue credentials (${statusCode}): ${responseText}`);
   }
   const json = JSON.parse(responseText);
-  const confirmationId = json.aws?.awsConfirmationId ?? "";
-  const accessKeyId = json.aws?.awsAccessKeyId ?? "";
-  const secretAccessKey = json.aws?.awsSecretAccessKey ?? "";
-  const sessionToken = json.aws?.awsSessionToken ?? "";
-  if (!confirmationId || !accessKeyId || !secretAccessKey || !sessionToken) {
-    throw new Error("Issued credentials response is missing required AWS fields.");
+  if (!json.aws && !json.ssh) {
+    throw new Error("No credentials were issued: neither AWS nor SSH credentials were returned");
   }
   core.info("Credentials issued");
-  return {
-    confirmationId,
-    accessKeyId,
-    secretAccessKey,
-    sessionToken
-  };
+  return json;
 }
 async function confirmCredentials(token, apiHost, customerId, confirmationId) {
   const response = await httpClient.post(buildConfirmUrl(apiHost, customerId), JSON.stringify({ id: confirmationId }), {
@@ -22844,7 +22835,8 @@ async function confirmCredentials(token, apiHost, customerId, confirmationId) {
 
 // src/deploy.ts
 var import_promises = require("node:fs/promises");
-var import_node_os = __toESM(require("node:os"));
+var net = __toESM(require("node:net"));
+var os = __toESM(require("node:os"));
 var import_node_path = __toESM(require("node:path"));
 var core2 = __toESM(require_core(), 1);
 async function appendToFile(filePath, content) {
@@ -22865,17 +22857,17 @@ ${normalizedContent}`, "utf8");
     });
   }
 }
-async function writeProfile(profileName, region, creds) {
-  const defaultAwsDir = import_node_path.default.join(import_node_os.default.homedir(), ".aws");
+async function writeAwsProfile(profileName, region, creds) {
+  const defaultAwsDir = import_node_path.default.join(os.homedir(), ".aws");
   const credentialsPath = process.env.AWS_SHARED_CREDENTIALS_FILE ?? import_node_path.default.join(defaultAwsDir, "credentials");
   const configPath = process.env.AWS_CONFIG_FILE ?? import_node_path.default.join(defaultAwsDir, "config");
   await import_promises.mkdir(import_node_path.default.dirname(credentialsPath), { recursive: true, mode: 480 });
   await import_promises.mkdir(import_node_path.default.dirname(configPath), { recursive: true, mode: 480 });
   const credentialsBlock = [
     `[${profileName}]`,
-    `aws_access_key_id = ${creds.accessKeyId}`,
-    `aws_secret_access_key = ${creds.secretAccessKey}`,
-    `aws_session_token = ${creds.sessionToken}`
+    `aws_access_key_id = ${creds.awsAccessKeyId}`,
+    `aws_secret_access_key = ${creds.awsSecretAccessKey}`,
+    `aws_session_token = ${creds.awsSessionToken}`
   ].join(`
 `);
   const configHeader = profileName === "default" ? "default" : `profile ${profileName}`;
@@ -22883,6 +22875,37 @@ async function writeProfile(profileName, region, creds) {
 `);
   await appendToFile(credentialsPath, credentialsBlock);
   await appendToFile(configPath, configBlock);
+}
+async function writeSshCredentials(ssh) {
+  const sshDir = import_node_path.default.join(os.homedir(), ".ssh");
+  await import_promises.mkdir(sshDir, { recursive: true, mode: 448 });
+  const privateKeyDecoded = Buffer.from(ssh.sshPrivateKey, "base64").toString("utf8");
+  const publicKeyDecoded = Buffer.from(ssh.sshPublicKey, "base64").toString("utf8");
+  core2.setSecret(ssh.sshPrivateKey);
+  core2.setSecret(privateKeyDecoded);
+  const privateKeyFile = import_node_path.default.join(sshDir, "prod_deploy");
+  const publicKeyFile = import_node_path.default.join(sshDir, "prod_deploy.pub");
+  const configFile = import_node_path.default.join(sshDir, "config");
+  await import_promises.writeFile(privateKeyFile, privateKeyDecoded, {
+    encoding: "utf8",
+    mode: 384
+  });
+  await import_promises.writeFile(publicKeyFile, publicKeyDecoded, {
+    encoding: "utf8",
+    mode: 420
+  });
+  if (!net.isIP(ssh.sshIp)) {
+    throw new Error(`Invalid SSH IP address "${ssh.sshIp}": must be a valid IPv4 or IPv6 address`);
+  }
+  const hostConfig = [
+    `Host ${ssh.sshIp}`,
+    `    IdentityFile ${privateKeyFile}`,
+    "    PasswordAuthentication no",
+    "    StrictHostKeyChecking no"
+  ].join(`
+`);
+  await appendToFile(configFile, hostConfig);
+  core2.info(`SSH credentials written for ${ssh.sshIp}`);
 }
 function safeExportVariable(name, value) {
   try {
@@ -22913,38 +22936,53 @@ function safeSetSecret(value) {
   }
 }
 function populateGitHubVars(envPrefix, region, profileName, creds) {
-  safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.accessKeyId);
-  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
-  safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.sessionToken);
-  safeExportVariable(`${envPrefix}REGION`, region);
-  safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
-  safeExportVariable(`${envPrefix}PROFILE`, profileName);
-  safeSetOutput("aws-access-key-id", creds.accessKeyId);
-  safeSetOutput("aws-secret-access-key", creds.secretAccessKey);
-  safeSetOutput("aws-session-token", creds.sessionToken);
-  safeSetOutput("profile-name", profileName);
-  safeSaveState("aws-access-key-id", creds.accessKeyId);
-  safeSaveState("aws-secret-access-key", creds.secretAccessKey);
-  safeSaveState("aws-session-token", creds.sessionToken);
-  safeSaveState("profile-name", profileName);
-  const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.accessKeyId}","isSecret":true}`;
-  const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.secretAccessKey}","isSecret":true}`;
-  const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.sessionToken}","isSecret":true}`;
-  safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
-  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
-  safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
-  safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
-  safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
-  safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
-  safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
-  safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
-  safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
-  safeSetSecret(creds.accessKeyId);
-  safeSetSecret(creds.secretAccessKey);
-  safeSetSecret(creds.sessionToken);
-  safeSetSecret(accessKeyIdSecretFormat);
-  safeSetSecret(secretAccessKeySecretFormat);
-  safeSetSecret(sessionTokenSecretFormat);
+  if (creds.aws) {
+    safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.aws.awsAccessKeyId);
+    safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.aws.awsSecretAccessKey);
+    safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.aws.awsSessionToken);
+    safeExportVariable(`${envPrefix}REGION`, region);
+    safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
+    safeExportVariable(`${envPrefix}PROFILE`, profileName);
+    safeSetOutput("aws-access-key-id", creds.aws.awsAccessKeyId);
+    safeSetOutput("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+    safeSetOutput("aws-session-token", creds.aws.awsSessionToken);
+    safeSetOutput("profile-name", profileName);
+    safeSaveState("aws-access-key-id", creds.aws.awsAccessKeyId);
+    safeSaveState("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+    safeSaveState("aws-session-token", creds.aws.awsSessionToken);
+    safeSaveState("profile-name", profileName);
+    const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.aws.awsAccessKeyId}","isSecret":true}`;
+    const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.aws.awsSecretAccessKey}","isSecret":true}`;
+    const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.aws.awsSessionToken}","isSecret":true}`;
+    safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
+    safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
+    safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
+    safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
+    safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+    safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
+    safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
+    safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+    safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
+    safeSetSecret(creds.aws.awsAccessKeyId);
+    safeSetSecret(creds.aws.awsSecretAccessKey);
+    safeSetSecret(creds.aws.awsSessionToken);
+    safeSetSecret(accessKeyIdSecretFormat);
+    safeSetSecret(secretAccessKeySecretFormat);
+    safeSetSecret(sessionTokenSecretFormat);
+  }
+  if (creds.ssh) {
+    const sshPrivateKeyDecoded = Buffer.from(creds.ssh.sshPrivateKey, "base64").toString("utf8");
+    const sshPrivateKeyFormat = `"SSH_PRIVATE_KEY":{"value":"${sshPrivateKeyDecoded}","isSecret":true}`;
+    const sshIpFormat = `"SSH_IP":{"value":"${creds.ssh.sshIp}","isSecret":true}`;
+    safeSetOutput("ssh-private-key", sshPrivateKeyFormat);
+    safeSetOutput("ssh-ip", sshIpFormat);
+    safeSaveState("ssh-private-key", sshPrivateKeyFormat);
+    safeSaveState("ssh-ip", sshIpFormat);
+    safeSetSecret(sshPrivateKeyDecoded);
+    safeSetSecret(creds.ssh.sshIp);
+    safeSetSecret(sshPrivateKeyFormat);
+    safeSetSecret(sshIpFormat);
+  }
 }
 
 // src/inputs.ts
@@ -23013,26 +23051,43 @@ async function runSync(inputs) {
   let creds;
   try {
     creds = await issueCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId);
-    core4.setSecret(creds.accessKeyId);
-    core4.setSecret(creds.secretAccessKey);
-    core4.setSecret(creds.sessionToken);
-    core4.setOutput("aws-access-key-id", creds.accessKeyId);
-    core4.setOutput("aws-secret-access-key", creds.secretAccessKey);
-    core4.setOutput("aws-session-token", creds.sessionToken);
+    if (creds.aws) {
+      core4.setSecret(creds.aws.awsAccessKeyId);
+      core4.setSecret(creds.aws.awsSecretAccessKey);
+      core4.setSecret(creds.aws.awsSessionToken);
+      core4.setOutput("aws-access-key-id", creds.aws.awsAccessKeyId);
+      core4.setOutput("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+      core4.setOutput("aws-session-token", creds.aws.awsSessionToken);
+    }
   } catch (error) {
     core4.warning(`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
-  try {
-    await writeProfile(inputs.profileName, inputs.region, creds);
-  } catch (error) {
-    core4.warning(`Write profile failed: ${error instanceof Error ? error.message : String(error)}`);
+  if (creds.aws) {
+    try {
+      await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+    } catch (error) {
+      core4.warning(`Write profile failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (creds.ssh) {
+    try {
+      await writeSshCredentials(creds.ssh);
+    } catch (error) {
+      core4.warning(`Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, creds);
-  try {
-    await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, creds?.confirmationId ?? "");
-  } catch (error) {
-    core4.warning(`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`);
+  const confirmationIds = [
+    creds.aws?.awsConfirmationId,
+    creds.ssh?.sshConfirmationId
+  ].filter((id) => id !== undefined);
+  for (const confirmationId of confirmationIds) {
+    try {
+      await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, confirmationId);
+    } catch (error) {
+      core4.warning(`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 async function runAsync() {

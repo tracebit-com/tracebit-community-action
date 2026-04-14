@@ -34,11 +34,24 @@ function toNonEmptyLabels(
 	return labels.filter((label) => label.value.length > 0);
 }
 
+export interface IssuedAwsCredentials {
+	awsConfirmationId: string;
+	awsAccessKeyId: string;
+	awsSecretAccessKey: string;
+	awsSessionToken: string;
+}
+
+export interface IssuedSshCredentials {
+	sshConfirmationId: string;
+	sshIp: string;
+	sshPrivateKey: string;
+	sshPublicKey: string;
+	sshExpiration: string;
+}
+
 export interface IssuedCredentials {
-	confirmationId: string;
-	accessKeyId: string;
-	secretAccessKey: string;
-	sessionToken: string;
+	aws?: IssuedAwsCredentials;
+	ssh?: IssuedSshCredentials;
 }
 
 export async function issueCredentials(
@@ -65,7 +78,7 @@ export async function issueCredentials(
 		name: `${context.repository}@${context.workflow}`,
 		source: "github",
 		sourceType: "ci/cd",
-		types: ["aws"],
+		types: ["aws", "ssh"],
 		labels,
 	};
 
@@ -86,34 +99,32 @@ export async function issueCredentials(
 		);
 	}
 
+	// TODO: add error catching to JSON parsing
 	const json = JSON.parse(responseText) as {
 		aws?: {
-			awsConfirmationId?: string;
-			awsAccessKeyId?: string;
-			awsSecretAccessKey?: string;
-			awsSessionToken?: string;
+			awsConfirmationId: string;
+			awsAccessKeyId: string;
+			awsSecretAccessKey: string;
+			awsSessionToken: string;
+		};
+		ssh?: {
+			sshConfirmationId: string;
+			sshIp: string;
+			sshPrivateKey: string;
+			sshPublicKey: string;
+			sshExpiration: string;
 		};
 	};
 
-	const confirmationId = json.aws?.awsConfirmationId ?? "";
-	const accessKeyId = json.aws?.awsAccessKeyId ?? "";
-	const secretAccessKey = json.aws?.awsSecretAccessKey ?? "";
-	const sessionToken = json.aws?.awsSessionToken ?? "";
-
-	if (!confirmationId || !accessKeyId || !secretAccessKey || !sessionToken) {
+	if (!json.aws && !json.ssh) {
 		throw new Error(
-			"Issued credentials response is missing required AWS fields.",
+			"No credentials were issued: neither AWS nor SSH credentials were returned",
 		);
 	}
 
 	core.info("Credentials issued");
 
-	return {
-		confirmationId,
-		accessKeyId,
-		secretAccessKey,
-		sessionToken,
-	};
+	return json;
 }
 
 export async function confirmCredentials(

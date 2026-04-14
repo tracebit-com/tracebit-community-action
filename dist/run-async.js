@@ -22798,7 +22798,7 @@ async function issueCredentials(token, apiHost, customerId) {
     name: `${context2.repository}@${context2.workflow}`,
     source: "github",
     sourceType: "ci/cd",
-    types: ["aws"],
+    types: ["aws", "ssh"],
     labels
   };
   const response = await httpClient.post(buildIssueUrl(apiHost, customerId), JSON.stringify(payload), {
@@ -22811,20 +22811,11 @@ async function issueCredentials(token, apiHost, customerId) {
     throw new Error(`Failed to issue credentials (${statusCode}): ${responseText}`);
   }
   const json = JSON.parse(responseText);
-  const confirmationId = json.aws?.awsConfirmationId ?? "";
-  const accessKeyId = json.aws?.awsAccessKeyId ?? "";
-  const secretAccessKey = json.aws?.awsSecretAccessKey ?? "";
-  const sessionToken = json.aws?.awsSessionToken ?? "";
-  if (!confirmationId || !accessKeyId || !secretAccessKey || !sessionToken) {
-    throw new Error("Issued credentials response is missing required AWS fields.");
+  if (!json.aws && !json.ssh) {
+    throw new Error("No credentials were issued: neither AWS nor SSH credentials were returned");
   }
   core.info("Credentials issued");
-  return {
-    confirmationId,
-    accessKeyId,
-    secretAccessKey,
-    sessionToken
-  };
+  return json;
 }
 async function confirmCredentials(token, apiHost, customerId, confirmationId) {
   const response = await httpClient.post(buildConfirmUrl(apiHost, customerId), JSON.stringify({ id: confirmationId }), {
@@ -22841,7 +22832,8 @@ async function confirmCredentials(token, apiHost, customerId, confirmationId) {
 
 // src/deploy.ts
 var import_promises = require("node:fs/promises");
-var import_node_os = __toESM(require("node:os"));
+var net = __toESM(require("node:net"));
+var os = __toESM(require("node:os"));
 var import_node_path = __toESM(require("node:path"));
 var core2 = __toESM(require_core(), 1);
 async function appendToFile(filePath, content) {
@@ -22862,17 +22854,17 @@ ${normalizedContent}`, "utf8");
     });
   }
 }
-async function writeProfile(profileName, region, creds) {
-  const defaultAwsDir = import_node_path.default.join(import_node_os.default.homedir(), ".aws");
+async function writeAwsProfile(profileName, region, creds) {
+  const defaultAwsDir = import_node_path.default.join(os.homedir(), ".aws");
   const credentialsPath = process.env.AWS_SHARED_CREDENTIALS_FILE ?? import_node_path.default.join(defaultAwsDir, "credentials");
   const configPath = process.env.AWS_CONFIG_FILE ?? import_node_path.default.join(defaultAwsDir, "config");
   await import_promises.mkdir(import_node_path.default.dirname(credentialsPath), { recursive: true, mode: 480 });
   await import_promises.mkdir(import_node_path.default.dirname(configPath), { recursive: true, mode: 480 });
   const credentialsBlock = [
     `[${profileName}]`,
-    `aws_access_key_id = ${creds.accessKeyId}`,
-    `aws_secret_access_key = ${creds.secretAccessKey}`,
-    `aws_session_token = ${creds.sessionToken}`
+    `aws_access_key_id = ${creds.awsAccessKeyId}`,
+    `aws_secret_access_key = ${creds.awsSecretAccessKey}`,
+    `aws_session_token = ${creds.awsSessionToken}`
   ].join(`
 `);
   const configHeader = profileName === "default" ? "default" : `profile ${profileName}`;
@@ -22880,6 +22872,37 @@ async function writeProfile(profileName, region, creds) {
 `);
   await appendToFile(credentialsPath, credentialsBlock);
   await appendToFile(configPath, configBlock);
+}
+async function writeSshCredentials(ssh) {
+  const sshDir = import_node_path.default.join(os.homedir(), ".ssh");
+  await import_promises.mkdir(sshDir, { recursive: true, mode: 448 });
+  const privateKeyDecoded = Buffer.from(ssh.sshPrivateKey, "base64").toString("utf8");
+  const publicKeyDecoded = Buffer.from(ssh.sshPublicKey, "base64").toString("utf8");
+  core2.setSecret(ssh.sshPrivateKey);
+  core2.setSecret(privateKeyDecoded);
+  const privateKeyFile = import_node_path.default.join(sshDir, "prod_deploy");
+  const publicKeyFile = import_node_path.default.join(sshDir, "prod_deploy.pub");
+  const configFile = import_node_path.default.join(sshDir, "config");
+  await import_promises.writeFile(privateKeyFile, privateKeyDecoded, {
+    encoding: "utf8",
+    mode: 384
+  });
+  await import_promises.writeFile(publicKeyFile, publicKeyDecoded, {
+    encoding: "utf8",
+    mode: 420
+  });
+  if (!net.isIP(ssh.sshIp)) {
+    throw new Error(`Invalid SSH IP address "${ssh.sshIp}": must be a valid IPv4 or IPv6 address`);
+  }
+  const hostConfig = [
+    `Host ${ssh.sshIp}`,
+    `    IdentityFile ${privateKeyFile}`,
+    "    PasswordAuthentication no",
+    "    StrictHostKeyChecking no"
+  ].join(`
+`);
+  await appendToFile(configFile, hostConfig);
+  core2.info(`SSH credentials written for ${ssh.sshIp}`);
 }
 
 // src/inputs.ts
@@ -22963,19 +22986,36 @@ async function run() {
     return;
   }
   fs.writeFileSync(credentialsPath, JSON.stringify(creds));
-  try {
-    await writeProfile(inputs.profileName, inputs.region, creds);
-  } catch (error) {
-    const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
-    fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
-    core4.warning(message);
+  if (creds.aws) {
+    try {
+      await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+    } catch (error) {
+      const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
+      fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+      core4.warning(message);
+    }
   }
-  try {
-    await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, creds?.confirmationId ?? "");
-  } catch (error) {
-    const message = `Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`;
-    fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
-    core4.warning(message);
+  if (creds.ssh) {
+    try {
+      await writeSshCredentials(creds.ssh);
+    } catch (error) {
+      const message = `Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+      fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+      core4.warning(message);
+    }
+  }
+  const confirmationIds = [
+    creds.aws?.awsConfirmationId,
+    creds.ssh?.sshConfirmationId
+  ].filter((id) => id !== undefined);
+  for (const confirmationId of confirmationIds) {
+    try {
+      await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, confirmationId);
+    } catch (error) {
+      const message = `Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+      fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+      core4.warning(message);
+    }
   }
 }
 if (require.main == module) {

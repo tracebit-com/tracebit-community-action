@@ -8,7 +8,11 @@ import {
 	type IssuedCredentials,
 	issueCredentials,
 } from "./api";
-import { populateGitHubVars, writeProfile } from "./deploy";
+import {
+	populateGitHubVars,
+	writeAwsProfile,
+	writeSshCredentials,
+} from "./deploy";
 import { getInputs, type Inputs } from "./inputs";
 
 async function runSync(inputs: Inputs): Promise<void> {
@@ -21,13 +25,15 @@ async function runSync(inputs: Inputs): Promise<void> {
 			inputs.customerId,
 		);
 
-		core.setSecret(creds.accessKeyId);
-		core.setSecret(creds.secretAccessKey);
-		core.setSecret(creds.sessionToken);
+		if (creds.aws) {
+			core.setSecret(creds.aws.awsAccessKeyId);
+			core.setSecret(creds.aws.awsSecretAccessKey);
+			core.setSecret(creds.aws.awsSessionToken);
 
-		core.setOutput("aws-access-key-id", creds.accessKeyId);
-		core.setOutput("aws-secret-access-key", creds.secretAccessKey);
-		core.setOutput("aws-session-token", creds.sessionToken);
+			core.setOutput("aws-access-key-id", creds.aws.awsAccessKeyId);
+			core.setOutput("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+			core.setOutput("aws-session-token", creds.aws.awsSessionToken);
+		}
 	} catch (error) {
 		core.warning(
 			`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -35,12 +41,24 @@ async function runSync(inputs: Inputs): Promise<void> {
 		return;
 	}
 
-	try {
-		await writeProfile(inputs.profileName, inputs.region, creds);
-	} catch (error) {
-		core.warning(
-			`Write profile failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
+	if (creds.aws) {
+		try {
+			await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+		} catch (error) {
+			core.warning(
+				`Write profile failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	if (creds.ssh) {
+		try {
+			await writeSshCredentials(creds.ssh);
+		} catch (error) {
+			core.warning(
+				`Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
 	}
 
 	populateGitHubVars(
@@ -50,17 +68,24 @@ async function runSync(inputs: Inputs): Promise<void> {
 		creds,
 	);
 
-	try {
-		await confirmCredentials(
-			inputs.apiToken,
-			inputs.apiHost,
-			inputs.customerId,
-			creds?.confirmationId ?? "",
-		);
-	} catch (error) {
-		core.warning(
-			`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
+	const confirmationIds = [
+		creds.aws?.awsConfirmationId,
+		creds.ssh?.sshConfirmationId,
+	].filter((id): id is string => id !== undefined);
+
+	for (const confirmationId of confirmationIds) {
+		try {
+			await confirmCredentials(
+				inputs.apiToken,
+				inputs.apiHost,
+				inputs.customerId,
+				confirmationId,
+			);
+		} catch (error) {
+			core.warning(
+				`Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
 	}
 }
 

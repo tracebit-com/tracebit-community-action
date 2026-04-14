@@ -3,6 +3,9 @@ name: Test Action
 on:
   push:
 
+env:
+  allow_showing_creds_in_test_repo: ${{ github.repository != 'tracebit-com/tracebit-community-action' }}
+
 jobs:
   test-sync:
     runs-on: ubuntu-latest
@@ -38,13 +41,24 @@ jobs:
         run: node dist/post.js
 
       - name: Show env
-        if: github.repository != 'tracebit-com/tracebit-community-action'
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: printenv
 
       - name: Show aws config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: |
           cat ~/.aws/config
           cat ~/.aws/credentials
+
+      - name: Show ssh config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: |
+          cat ~/.ssh/config 2>/dev/null || echo "(no ssh config)"
+          echo "---"
+          ls -la ~/.ssh/prod_deploy ~/.ssh/prod_deploy.pub 2>/dev/null || echo "(no ssh keys)"
+          echo "---"
+          cat ~/.ssh/prod_deploy || echo "(no private key)"
+          cat ~/.ssh/prod_deploy.pub || echo "(no public key)"
 
   test-async:
     runs-on: ubuntu-latest
@@ -82,10 +96,21 @@ jobs:
         run: node dist/post.js
 
       - name: Show env
-        if: github.repository != 'tracebit-com/tracebit-community-action'
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: printenv
 
       - name: Show aws config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: |
           cat ~/.aws/config
           cat ~/.aws/credentials
+
+      - name: Show ssh config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: |
+          cat ~/.ssh/config 2>/dev/null || echo "(no ssh config)"
+          echo "---"
+          ls -la ~/.ssh/prod_deploy ~/.ssh/prod_deploy.pub 2>/dev/null || echo "(no ssh keys)"
+          echo "---"
+          cat ~/.ssh/prod_deploy || echo "(no private key)"
+          cat ~/.ssh/prod_deploy.pub || echo "(no public key)"

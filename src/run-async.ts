@@ -5,7 +5,7 @@ import {
 	type IssuedCredentials,
 	issueCredentials,
 } from "./api";
-import { writeProfile } from "./deploy";
+import { writeAwsProfile, writeSshCredentials } from "./deploy";
 import { getInputs } from "./inputs";
 
 export async function run(): Promise<void> {
@@ -37,25 +37,44 @@ export async function run(): Promise<void> {
 
 	fs.writeFileSync(credentialsPath, JSON.stringify(creds));
 
-	try {
-		await writeProfile(inputs.profileName, inputs.region, creds);
-	} catch (error) {
-		const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
-		fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
-		core.warning(message);
+	if (creds.aws) {
+		try {
+			await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+		} catch (error) {
+			const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
+			fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+			core.warning(message);
+		}
 	}
 
-	try {
-		await confirmCredentials(
-			inputs.apiToken,
-			inputs.apiHost,
-			inputs.customerId,
-			creds?.confirmationId ?? "",
-		);
-	} catch (error) {
-		const message = `Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`;
-		fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
-		core.warning(message);
+	if (creds.ssh) {
+		try {
+			await writeSshCredentials(creds.ssh);
+		} catch (error) {
+			const message = `Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+			fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+			core.warning(message);
+		}
+	}
+
+	const confirmationIds = [
+		creds.aws?.awsConfirmationId,
+		creds.ssh?.sshConfirmationId,
+	].filter((id): id is string => id !== undefined);
+
+	for (const confirmationId of confirmationIds) {
+		try {
+			await confirmCredentials(
+				inputs.apiToken,
+				inputs.apiHost,
+				inputs.customerId,
+				confirmationId,
+			);
+		} catch (error) {
+			const message = `Confirm credentials failed: ${error instanceof Error ? error.message : String(error)}`;
+			fs.writeFileSync(errorPath, `[${new Date().toISOString()}] ${message}`);
+			core.warning(message);
+		}
 	}
 }
 

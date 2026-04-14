@@ -22792,38 +22792,53 @@ function safeSetSecret(value) {
   }
 }
 function populateGitHubVars(envPrefix, region, profileName, creds) {
-  safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.accessKeyId);
-  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.secretAccessKey);
-  safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.sessionToken);
-  safeExportVariable(`${envPrefix}REGION`, region);
-  safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
-  safeExportVariable(`${envPrefix}PROFILE`, profileName);
-  safeSetOutput("aws-access-key-id", creds.accessKeyId);
-  safeSetOutput("aws-secret-access-key", creds.secretAccessKey);
-  safeSetOutput("aws-session-token", creds.sessionToken);
-  safeSetOutput("profile-name", profileName);
-  safeSaveState("aws-access-key-id", creds.accessKeyId);
-  safeSaveState("aws-secret-access-key", creds.secretAccessKey);
-  safeSaveState("aws-session-token", creds.sessionToken);
-  safeSaveState("profile-name", profileName);
-  const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.accessKeyId}","isSecret":true}`;
-  const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.secretAccessKey}","isSecret":true}`;
-  const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.sessionToken}","isSecret":true}`;
-  safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
-  safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
-  safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
-  safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
-  safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
-  safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
-  safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
-  safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
-  safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
-  safeSetSecret(creds.accessKeyId);
-  safeSetSecret(creds.secretAccessKey);
-  safeSetSecret(creds.sessionToken);
-  safeSetSecret(accessKeyIdSecretFormat);
-  safeSetSecret(secretAccessKeySecretFormat);
-  safeSetSecret(sessionTokenSecretFormat);
+  if (creds.aws) {
+    safeExportVariable(`${envPrefix}ACCESS_KEY_ID`, creds.aws.awsAccessKeyId);
+    safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY`, creds.aws.awsSecretAccessKey);
+    safeExportVariable(`${envPrefix}SESSION_TOKEN`, creds.aws.awsSessionToken);
+    safeExportVariable(`${envPrefix}REGION`, region);
+    safeExportVariable(`${envPrefix}DEFAULT_REGION`, region);
+    safeExportVariable(`${envPrefix}PROFILE`, profileName);
+    safeSetOutput("aws-access-key-id", creds.aws.awsAccessKeyId);
+    safeSetOutput("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+    safeSetOutput("aws-session-token", creds.aws.awsSessionToken);
+    safeSetOutput("profile-name", profileName);
+    safeSaveState("aws-access-key-id", creds.aws.awsAccessKeyId);
+    safeSaveState("aws-secret-access-key", creds.aws.awsSecretAccessKey);
+    safeSaveState("aws-session-token", creds.aws.awsSessionToken);
+    safeSaveState("profile-name", profileName);
+    const accessKeyIdSecretFormat = `"ACCESS_KEY_ID_SECRET":{"value":"${creds.aws.awsAccessKeyId}","isSecret":true}`;
+    const secretAccessKeySecretFormat = `"SECRET_ACCESS_KEY_SECRET":{"value":"${creds.aws.awsSecretAccessKey}","isSecret":true}`;
+    const sessionTokenSecretFormat = `"SESSION_TOKEN_SECRET":{"value":"${creds.aws.awsSessionToken}","isSecret":true}`;
+    safeExportVariable(`${envPrefix}ACCESS_KEY_ID_SECRET`, accessKeyIdSecretFormat);
+    safeExportVariable(`${envPrefix}SECRET_ACCESS_KEY_SECRET`, secretAccessKeySecretFormat);
+    safeExportVariable(`${envPrefix}SESSION_TOKEN_SECRET`, sessionTokenSecretFormat);
+    safeSetOutput("aws-access-key-id-secret", accessKeyIdSecretFormat);
+    safeSetOutput("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+    safeSetOutput("aws-session-token-secret", sessionTokenSecretFormat);
+    safeSaveState("aws-access-key-id-secret", accessKeyIdSecretFormat);
+    safeSaveState("aws-secret-access-key-secret", secretAccessKeySecretFormat);
+    safeSaveState("aws-session-token-secret", sessionTokenSecretFormat);
+    safeSetSecret(creds.aws.awsAccessKeyId);
+    safeSetSecret(creds.aws.awsSecretAccessKey);
+    safeSetSecret(creds.aws.awsSessionToken);
+    safeSetSecret(accessKeyIdSecretFormat);
+    safeSetSecret(secretAccessKeySecretFormat);
+    safeSetSecret(sessionTokenSecretFormat);
+  }
+  if (creds.ssh) {
+    const sshPrivateKeyDecoded = Buffer.from(creds.ssh.sshPrivateKey, "base64").toString("utf8");
+    const sshPrivateKeyFormat = `"SSH_PRIVATE_KEY":{"value":"${sshPrivateKeyDecoded}","isSecret":true}`;
+    const sshIpFormat = `"SSH_IP":{"value":"${creds.ssh.sshIp}","isSecret":true}`;
+    safeSetOutput("ssh-private-key", sshPrivateKeyFormat);
+    safeSetOutput("ssh-ip", sshIpFormat);
+    safeSaveState("ssh-private-key", sshPrivateKeyFormat);
+    safeSaveState("ssh-ip", sshIpFormat);
+    safeSetSecret(sshPrivateKeyDecoded);
+    safeSetSecret(creds.ssh.sshIp);
+    safeSetSecret(sshPrivateKeyFormat);
+    safeSetSecret(sshIpFormat);
+  }
 }
 
 // src/inputs.ts

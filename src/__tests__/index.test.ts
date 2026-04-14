@@ -132,10 +132,19 @@ describe("action run", () => {
 		writeFileSync(
 			credentialsPath,
 			JSON.stringify({
-				confirmationId: "confirm",
-				accessKeyId: "access",
-				secretAccessKey: "secret",
-				sessionToken: "token",
+				aws: {
+					awsConfirmationId: "confirm",
+					awsAccessKeyId: "access",
+					awsSecretAccessKey: "secret",
+					awsSessionToken: "token",
+				},
+				ssh: {
+					sshConfirmationId: "ssh-confirm",
+					sshIp: "34.246.54.210",
+					sshPrivateKey: Buffer.from("fake-private").toString("base64"),
+					sshPublicKey: Buffer.from("fake-public").toString("base64"),
+					sshExpiration: "2026-05-10T14:45:14.7390578Z",
+				},
 			}),
 		);
 		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
