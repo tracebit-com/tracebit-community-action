@@ -22757,6 +22757,34 @@ var import_node_crypto = require("node:crypto");
 var core = __toESM(require_core(), 1);
 var import_github = __toESM(require_github(), 1);
 var import_http_client = __toESM(require_lib(), 1);
+// package.json
+var package_default = {
+  name: "tracebit-github-action",
+  version: "1.1.0",
+  private: true,
+  main: "dist/index.js",
+  scripts: {
+    build: "bun build src/index.ts --target=node --format=cjs --outdir=dist && bun build src/pre.ts --target=node --format=cjs --outdir=dist && bun build src/run-async.ts --target=node --format=cjs --outdir=dist && bun build src/post.ts --target=node --format=cjs --outdir=dist",
+    "run:local": "bash scripts/run-local.sh",
+    format: "biome check --write",
+    "format-fix": "biome check --fix --unsafe",
+    test: "vitest run"
+  },
+  dependencies: {
+    "@actions/core": "1.11.1",
+    "@actions/exec": "1.1.1",
+    "@actions/github": "6.0.1",
+    "@actions/http-client": "2.2.3"
+  },
+  devDependencies: {
+    "@types/node": "20.19.27",
+    typescript: "5.9.3",
+    vitest: "4.0.16",
+    "@types/bun": "1.3.11"
+  }
+};
+
+// src/api.ts
 var requestTimeout = 2000;
 var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
   socketTimeout: requestTimeout
@@ -22791,6 +22819,11 @@ async function issueCredentials(token, apiHost, customerId) {
     { name: "github.sha", value: context2.sha },
     { name: "github.workflow", value: context2.workflow },
     { name: "github.job", value: context2.job },
+    {
+      name: "github.action_ref",
+      value: process.env.GITHUB_ACTION_REF ?? "none"
+    },
+    { name: "action.version", value: package_default.version },
     { name: "unique_id", value: uniqueId },
     { name: "deployment_version", value: "2.0.0" }
   ]);

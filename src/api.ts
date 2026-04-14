@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as core from "@actions/core";
 import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
+import pkg from "../package.json";
 
 export const requestTimeout = 2_000;
 
@@ -70,6 +71,11 @@ export async function issueCredentials(
 		{ name: "github.sha", value: context.sha },
 		{ name: "github.workflow", value: context.workflow },
 		{ name: "github.job", value: context.job },
+		{
+			name: "github.action_ref",
+			value: process.env.GITHUB_ACTION_REF ?? "none",
+		},
+		{ name: "action.version", value: pkg.version },
 		{ name: "unique_id", value: uniqueId },
 		{ name: "deployment_version", value: "2.0.0" },
 	]);
