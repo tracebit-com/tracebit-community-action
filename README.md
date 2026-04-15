@@ -1,17 +1,17 @@
 # Tracebit GitHub Action
 
-This Action safely and automatically injects AWS canary credentials (honeytokens) into your build pipelines to detect supply chain attacks. Using [Tracebit](https://tracebit.com) you can quickly pinpoint the exact workflow involved in the credential compromise.
+This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect supply chain attacks. Using [Tracebit](https://tracebit.com) you can quickly pinpoint the exact workflow involved in the credential compromise.
 
 ## Why use this action?
 
 CI/CD pipelines are a high-value target. Attackers who compromise a workflow - through a malicious dependency, a poisoned runner, or a stolen repository secret - will look for credentials they can exfiltrate and use elsewhere.
 
-This action plants AWS canary credentials directly into every workflow run. The credentials are real AWS keys and any attempt to use them triggers an alert in Tracebit. You get immediate, high-confidence signal that something has gone wrong - no tuning, no false positives.
+This action plants AWS canary credentials and SSH canary keys directly into every workflow run. The credentials are real AWS and SSH keys and any attempt to use them triggers an alert in Tracebit. You get immediate, high-confidence signal that something has gone wrong - no tuning, no false positives.
 
 ## What attacks does it catch?
 
 - **Supply chain attacks**:
-  - **Compromised packages**: a malicious npm/pip/etc. package that exfiltrates environment variables or AWS credential files during `npm install` or a build step
+  - **Compromised packages**: a malicious npm/pip/etc. package that exfiltrates environment variables, AWS credentials or SSH key files during `npm install` or a build step
   - **Compromised GitHub Actions** - a third-party action in your workflow that leaks credentials it finds on the runner
 - **CI/CD secret theft** - an attacker who has obtained your runner's environment and is probing for usable credentials
   
@@ -36,10 +36,11 @@ Because the canary credentials are unique per run and tagged with the repo, work
 
 ## How it works
 
-1. At the start of your workflow, the action calls the Tracebit API to issue a short-lived set of canary AWS credentials.
-2. The credentials are written to `~/.aws/credentials`, exported as environment variables, and held in the runner process's memory - covering every common exfiltration surface: credential files, environment variable dumps, and process memory scraping.
-3. Tracebit monitors for any use of those credentials. If they are used, you get an alert with full context.
-4. At the end of the workflow run, the action confirms to Tracebit that the run completed normally. This closes the expected activity window and means any future use of those credentials is immediately flagged as suspicious.
+1. At the start of your workflow, the action calls the Tracebit API to issue a short-lived set of canary AWS credentials and SSH keys.
+2. The AWS credentials are written to `~/.aws/credentials`, exported as environment variables, and held in the runner process' memory - covering every common exfiltration surface: credential files, environment variable dumps, and process memory scraping.
+3. The SSH keys are written to `~/.ssh/` and held in the runner process' memory to cover the observed SSH scraping patterns.
+4. Tracebit monitors for any use of those credentials. If they are used, you get an alert with full context.
+5. At the end of the workflow run, the action confirms to Tracebit that the run completed normally. This closes the expected activity window and means any future use of those credentials is immediately flagged as suspicious.
 
 The action runs blocking by default. Use (`async: true`) if you have strict latency requirements for your pipelines.
 
@@ -70,7 +71,7 @@ Insert the action **before** any step that runs untrusted code (dependency insta
 
 ```yaml
 - name: Configure credentials
-  uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
+  uses: tracebit-com/tracebit-community-action@d0a68cb29196eafce908de76ec596a7e9ca049da
   with:
     api-token: ${{ secrets.SECURITY_API_TOKEN }}
     profile: administrator
@@ -96,7 +97,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Configure credentials
-        uses: tracebit-com/tracebit-community-action@517c410eae144100a1995cd720094c010995994d
+        uses: tracebit-com/tracebit-community-action@d0a68cb29196eafce908de76ec596a7e9ca049da
         with:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
