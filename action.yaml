@@ -1,5 +1,9 @@
 name: Tracebit Configure Credentials
-description: Tracebit Configure AWS Credentials
+description: Tracebit Configure Credentials
+
+branding:
+  icon: "alert-octagon"
+  color: "purple"
 
 inputs:
   customer-id:

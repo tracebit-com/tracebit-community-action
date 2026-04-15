@@ -22763,7 +22763,7 @@ var import_http_client = __toESM(require_lib(), 1);
 // package.json
 var package_default = {
   name: "tracebit-github-action",
-  version: "1.1.0",
+  version: "1.1.1",
   private: true,
   main: "dist/index.js",
   scripts: {
