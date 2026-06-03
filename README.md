@@ -1,6 +1,6 @@
 # Tracebit GitHub Action
 
-This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect supply chain attacks. Using [Tracebit](https://tracebit.com) you can quickly pinpoint the exact workflow involved in the credential compromise.
+This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect supply chain attacks. Using [Tracebit Community Edition](https://community.tracebit.com/supplychainattacks) you can quickly pinpoint the exact workflow involved in the credential compromise.
 
 ## Why use this action?
 
@@ -48,7 +48,7 @@ The action runs blocking by default. Use (`async: true`) if you have strict late
 
 You need a Tracebit account to use this action. Sign up for **Tracebit Community Edition** (free forever) - to get your `api-token`:
 
-**[Register for Tracebit Community Edition →](https://community.tracebit.com/join)**
+**[Register for Tracebit Community Edition →](https://community.tracebit.com/supplychainattacks)**
 
 Once registered, the Tracebit dashboard shows you:
 - Which repositories and workflows have canary coverage
