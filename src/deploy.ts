@@ -1,4 +1,5 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import type { Mode } from "node:fs";
+import { mkdir, open, writeFile } from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import path from "node:path";
@@ -8,20 +9,29 @@ import type {
 	IssuedCredentials,
 	IssuedSshCredentials,
 } from "./api";
+import type {
+	AllDeploymentStrategy,
+	AnyDeploymentStrategy,
+	DeploymentStrategy,
+	NpmTokenDeploymentStrategy,
+	TolerantDeploymentStrategy,
+} from "./external-types/deployment-strategy.js";
 
-async function appendToFile(filePath: string, content: string): Promise<void> {
+async function appendToFile(
+	filePath: string,
+	content: string,
+	mode?: Mode,
+): Promise<void> {
 	const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
+	// Open with 'a' (append, create if missing) so the requested mode is
+	// honored when the file is created. Existing files keep their mode.
+	const handle = await open(filePath, "a", mode ?? 0o640);
 	try {
-		await appendFile(filePath, `\n${normalizedContent}`, "utf8");
-	} catch (error) {
-		const err = error as NodeJS.ErrnoException;
-		if (err.code !== "ENOENT") {
-			throw err;
-		}
-		await writeFile(filePath, normalizedContent, {
-			encoding: "utf8",
-			mode: 0o640,
-		});
+		const stat = await handle.stat();
+		const prefix = stat.size === 0 ? "" : "\n";
+		await handle.writeFile(`${prefix}${normalizedContent}`, "utf8");
+	} finally {
+		await handle.close();
 	}
 }
 
@@ -100,6 +110,104 @@ export async function writeSshCredentials(
 	await appendToFile(configFile, hostConfig);
 
 	core.info(`SSH credentials written for ${ssh.sshIp}`);
+}
+
+// All strategies known to this action version.
+// A strategy must be included here to be implemented, but inclusion in this list
+// does not mean the strategy must be implemented.
+const knownStrategies: ReadonlySet<string> = new Set<
+	DeploymentStrategy["strategy"]
+>(["any", "all", "npm-token"]);
+
+function isKnownDeploymentStrategy(
+	strategy: TolerantDeploymentStrategy,
+): strategy is DeploymentStrategy {
+	return knownStrategies.has(strategy.strategy);
+}
+
+export async function deployHttp(
+	instanceId: string,
+	hostname: string,
+	strategy: TolerantDeploymentStrategy,
+): Promise<void> {
+	// Unknown strategies are defined as {strategy:string}, so filter out first to
+	// allow TS to infer types unambiguously in the switch expression
+	if (!isKnownDeploymentStrategy(strategy)) {
+		throw new Error(
+			`Deployment strategy "${strategy.strategy}" is not supported by this version of the Tracebit action`,
+		);
+	}
+	switch (strategy.strategy) {
+		case "all":
+			return deployAll(instanceId, hostname, strategy);
+		case "any":
+			return deployAny(instanceId, hostname, strategy);
+		case "npm-token":
+			return writeNpmToken(instanceId, hostname, strategy);
+	}
+}
+
+async function deployAny(
+	instanceId: string,
+	hostname: string,
+	any: AnyDeploymentStrategy,
+): Promise<void> {
+	if (any.strategies.length === 0) {
+		throw new Error(
+			"Any strategy was requested, but no strategies were provided",
+		);
+	}
+
+	for (const strategy of any.strategies) {
+		try {
+			await deployHttp(instanceId, hostname, strategy);
+			return;
+		} catch (e) {
+			core.info(
+				`Could not use preferred strategy(s) in any strategy: ${e instanceof Error ? e.message : String(e)}`,
+			);
+		}
+	}
+
+	throw new Error("Failed to apply any requested strategy");
+}
+
+async function deployAll(
+	instanceId: string,
+	hostname: string,
+	all: AllDeploymentStrategy,
+): Promise<void> {
+	for (const strategy of all.strategies) {
+		try {
+			await deployHttp(instanceId, hostname, strategy);
+		} catch (e) {
+			throw new Error(
+				`Failed to apply a strategy in all strategy: ${e instanceof Error ? e.message : String(e)}`,
+			);
+		}
+	}
+}
+
+async function writeNpmToken(
+	_instanceId: string,
+	hostname: string,
+	npmToken: NpmTokenDeploymentStrategy,
+): Promise<void> {
+	try {
+		const key = `//${hostname}/:_authToken`;
+		// Values containing equals signs must be wrapped in quotes
+		const { token } = npmToken;
+		core.setSecret(token);
+		const value = token.includes("=") ? `"${token}"` : token;
+
+		const npmrcPath = path.join(os.homedir(), ".npmrc");
+		await appendToFile(npmrcPath, `${key}=${value}`, 0o600);
+		core.info(`NPM token written for ${hostname}`);
+	} catch (e) {
+		throw new Error(
+			`Failed to write NPM token: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
 }
 
 // Wraps the core functions to make sure they don't throw any errors stopping the execution of the action

@@ -4,11 +4,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as core from "@actions/core";
 import {
+	type Config,
 	confirmCredentials,
+	getConfig,
 	type IssuedCredentials,
 	issueCredentials,
 } from "./api";
 import {
+	deployHttp,
 	populateGitHubVars,
 	writeAwsProfile,
 	writeSshCredentials,
@@ -16,13 +19,27 @@ import {
 import { getInputs, type Inputs } from "./inputs";
 
 async function runSync(inputs: Inputs): Promise<void> {
+	let config: Config | null = null;
 	let creds: IssuedCredentials;
+
+	try {
+		config = await getConfig(
+			inputs.apiToken,
+			inputs.apiHost,
+			inputs.customerId,
+		);
+	} catch (e) {
+		core.warning(
+			`Failed to fetch perimeter instances configuration, continuing with static types only: ${e}`,
+		);
+	}
 
 	try {
 		creds = await issueCredentials(
 			inputs.apiToken,
 			inputs.apiHost,
 			inputs.customerId,
+			config?.instances ?? [],
 		);
 
 		if (creds.aws) {
@@ -61,6 +78,24 @@ async function runSync(inputs: Inputs): Promise<void> {
 		}
 	}
 
+	if (creds.http) {
+		for (const [instanceId, instance] of Object.entries(creds.http)) {
+			try {
+				const { hostNames, credentials } = instance;
+				if (hostNames.length === 0) {
+					throw new Error("No hostnames are defined");
+				}
+				const hostname = hostNames[0];
+
+				await deployHttp(instanceId, hostname, credentials);
+			} catch (error) {
+				core.warning(
+					`Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}
+	}
+
 	populateGitHubVars(
 		inputs.envPrefix,
 		inputs.region,
@@ -71,7 +106,9 @@ async function runSync(inputs: Inputs): Promise<void> {
 	const confirmationIds = [
 		creds.aws?.awsConfirmationId,
 		creds.ssh?.sshConfirmationId,
-	].filter((id): id is string => id !== undefined);
+	]
+		.filter((id): id is string => id !== undefined)
+		.concat(Object.values(creds.http ?? {}).map((c) => c.confirmationId));
 
 	for (const confirmationId of confirmationIds) {
 		try {

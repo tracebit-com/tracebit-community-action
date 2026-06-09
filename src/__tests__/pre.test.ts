@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as ini from "ini";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@actions/core", () => ({
@@ -94,6 +95,18 @@ const issuedCredentialsResponse = {
 				sshPrivateKey: sshPrivateKeyBase64,
 				sshPublicKey: sshPublicKeyBase64,
 				sshExpiration: "2026-05-10T14:45:14.7390578Z",
+			},
+			http: {
+				npm: {
+					confirmationId: "npm-confirm-id",
+					browserDeploymentId: "npm-browser-deploy-id",
+					hostNames: ["npm.example.com"],
+					expiresAt: null,
+					credentials: {
+						strategy: "npm-token",
+						token: "npm-auth-token",
+					},
+				},
 			},
 		}),
 };
@@ -365,6 +378,29 @@ describe("pre step", () => {
 
 			expect(core.setSecret).toHaveBeenCalledWith(sshPrivateKeyBase64);
 			expect(core.setSecret).toHaveBeenCalledWith("fake-ssh-private-key");
+		});
+
+		it("writes NPM credentials when NPM token is in the response", async () => {
+			vi.mocked(core.getInput).mockImplementation(defaultInputs);
+			postMock
+				.mockResolvedValueOnce(issuedCredentialsResponse)
+				.mockResolvedValueOnce(confirmResponse)
+				.mockResolvedValueOnce(confirmResponse);
+
+			await run();
+
+			const configPath = path.join(tempHomeDir, ".npmrc");
+
+			const config = readFileSync(configPath, "utf8");
+			// npm uses ini package to parse; replicate that behaviour
+			const parsed = ini.parse(config);
+			expect(parsed).toHaveProperty(
+				`//npm.example.com/:_authToken`,
+				"npm-auth-token",
+			);
+
+			const configStat = statSync(configPath);
+			expect(configStat.mode & 0o777).toBe(0o600);
 		});
 	});
 

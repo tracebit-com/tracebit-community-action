@@ -6,5 +6,6 @@
   - In sync mode: `pre` issues credentials, writes the AWS profile, and exports env vars. `main` only prints logs. `post` is a no-op.
   - In async mode: `pre` forks a detached child process to issue credentials in the background and writes a temp file path to `_SECURITY_CREDENTIALS_PATH`. `main` waits for that file and exports env vars once the background process has written them. `post` checks for error files written by the background process and reports them.
 - `src/run-async.ts` is the child process entry point for async mode. It writes errors to `<credentialsPath>.error`.
+- `src/external-types/deployment-strategy.ts` is auto-synced from `tracebit-com/tracebit`. Do not hand-edit; edit the upstream source and a sync PR will be opened against this repo.
 - Tests are in `src/__tests__/`. Run with `bun run test`.
 - Always run `bun run build` before running `bun run test`

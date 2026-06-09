@@ -13104,7 +13104,7 @@ var require_fetch = __commonJS((exports2, module2) => {
       request.cache = "no-store";
     }
     const newConnection = forceNewConnection ? "yes" : "no";
-    if (request.mode === "websocket") {} else {}
+    if (request.mode === "websocket") {}
     let requestBody = null;
     if (request.body == null && fetchParams.processRequestEndOfBody) {
       queueMicrotask(() => fetchParams.processRequestEndOfBody());
@@ -22780,15 +22780,17 @@ var package_default = {
     "@actions/http-client": "2.2.3"
   },
   devDependencies: {
+    "@types/bun": "1.3.11",
+    "@types/ini": "4.1.1",
     "@types/node": "20.19.27",
+    ini: "6.0.0",
     typescript: "5.9.3",
-    vitest: "4.0.16",
-    "@types/bun": "1.3.11"
+    vitest: "4.0.16"
   }
 };
 
 // src/api.ts
-var requestTimeout = 2000;
+var requestTimeout = 5000;
 var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
   socketTimeout: requestTimeout
 });
@@ -22808,10 +22810,13 @@ function buildIssueUrl(apiHost, customerId) {
 function buildConfirmUrl(apiHost, customerId) {
   return `https://${customerId}.${apiHost}/api/v1/credentials/confirm-credentials`;
 }
+function buildGetConfigUrl(apiHost, customerId) {
+  return `https://${customerId}.${apiHost}/api/_internal/v1/github/instances`;
+}
 function toNonEmptyLabels(labels) {
   return labels.filter((label) => label.value.length > 0);
 }
-async function issueCredentials(token, apiHost, customerId) {
+async function issueCredentials(token, apiHost, customerId, httpInstances) {
   const context2 = getGithubContext();
   const uniqueId = import_node_crypto.randomUUID();
   core.info(`Issuing credential with unique_id ${uniqueId}`);
@@ -22830,11 +22835,16 @@ async function issueCredentials(token, apiHost, customerId) {
     { name: "unique_id", value: uniqueId },
     { name: "deployment_version", value: "2.0.0" }
   ]);
+  const typeConfigs = [
+    { typeName: "aws" },
+    { typeName: "ssh" },
+    ...httpInstances.map((i) => ({ ...i, typeName: "http" }))
+  ];
   const payload = {
     name: `${context2.repository}@${context2.workflow}`,
     source: "github",
     sourceType: "ci/cd",
-    types: ["aws", "ssh"],
+    typeConfigs,
     labels
   };
   const response = await httpClient.post(buildIssueUrl(apiHost, customerId), JSON.stringify(payload), {
@@ -22847,8 +22857,8 @@ async function issueCredentials(token, apiHost, customerId) {
     throw new Error(`Failed to issue credentials (${statusCode}): ${responseText}`);
   }
   const json = JSON.parse(responseText);
-  if (!json.aws && !json.ssh) {
-    throw new Error("No credentials were issued: neither AWS nor SSH credentials were returned");
+  if (!json.aws && !json.ssh && (!json.http || Object.keys(json.http).length === 0)) {
+    throw new Error("No credentials were issued: neither AWS, SSH nor HTTP credentials were returned");
   }
   core.info("Credentials issued");
   return json;
@@ -22865,6 +22875,17 @@ async function confirmCredentials(token, apiHost, customerId, confirmationId) {
   }
   core.info("Credentials confirmed");
 }
+async function getConfig(token, apiHost, customerId) {
+  const response = await httpClient.get(buildGetConfigUrl(apiHost, customerId), {
+    Authorization: `Bearer ${token}`
+  });
+  const statusCode = response.message.statusCode ?? 0;
+  const responseText = await response.readBody();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error(`Failed to get config (${statusCode}): ${responseText}`);
+  }
+  return JSON.parse(responseText);
+}
 
 // src/deploy.ts
 var import_promises = require("node:fs/promises");
@@ -22872,22 +22893,18 @@ var net = __toESM(require("node:net"));
 var os = __toESM(require("node:os"));
 var import_node_path = __toESM(require("node:path"));
 var core2 = __toESM(require_core(), 1);
-async function appendToFile(filePath, content) {
+async function appendToFile(filePath, content, mode) {
   const normalizedContent = content.endsWith(`
 `) ? content : `${content}
 `;
+  const handle = await import_promises.open(filePath, "a", mode ?? 416);
   try {
-    await import_promises.appendFile(filePath, `
-${normalizedContent}`, "utf8");
-  } catch (error) {
-    const err = error;
-    if (err.code !== "ENOENT") {
-      throw err;
-    }
-    await import_promises.writeFile(filePath, normalizedContent, {
-      encoding: "utf8",
-      mode: 416
-    });
+    const stat = await handle.stat();
+    const prefix = stat.size === 0 ? "" : `
+`;
+    await handle.writeFile(`${prefix}${normalizedContent}`, "utf8");
+  } finally {
+    await handle.close();
   }
 }
 async function writeAwsProfile(profileName, region, creds) {
@@ -22939,6 +22956,59 @@ async function writeSshCredentials(ssh) {
 `);
   await appendToFile(configFile, hostConfig);
   core2.info(`SSH credentials written for ${ssh.sshIp}`);
+}
+var knownStrategies = new Set(["any", "all", "npm-token"]);
+function isKnownDeploymentStrategy(strategy) {
+  return knownStrategies.has(strategy.strategy);
+}
+async function deployHttp(instanceId, hostname, strategy) {
+  if (!isKnownDeploymentStrategy(strategy)) {
+    throw new Error(`Deployment strategy "${strategy.strategy}" is not supported by this version of the Tracebit action`);
+  }
+  switch (strategy.strategy) {
+    case "all":
+      return deployAll(instanceId, hostname, strategy);
+    case "any":
+      return deployAny(instanceId, hostname, strategy);
+    case "npm-token":
+      return writeNpmToken(instanceId, hostname, strategy);
+  }
+}
+async function deployAny(instanceId, hostname, any) {
+  if (any.strategies.length === 0) {
+    throw new Error("Any strategy was requested, but no strategies were provided");
+  }
+  for (const strategy of any.strategies) {
+    try {
+      await deployHttp(instanceId, hostname, strategy);
+      return;
+    } catch (e) {
+      core2.info(`Could not use preferred strategy(s) in any strategy: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  throw new Error("Failed to apply any requested strategy");
+}
+async function deployAll(instanceId, hostname, all) {
+  for (const strategy of all.strategies) {
+    try {
+      await deployHttp(instanceId, hostname, strategy);
+    } catch (e) {
+      throw new Error(`Failed to apply a strategy in all strategy: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+}
+async function writeNpmToken(_instanceId, hostname, npmToken) {
+  try {
+    const key = `//${hostname}/:_authToken`;
+    const { token } = npmToken;
+    core2.setSecret(token);
+    const value = token.includes("=") ? `"${token}"` : token;
+    const npmrcPath = import_node_path.default.join(os.homedir(), ".npmrc");
+    await appendToFile(npmrcPath, `${key}=${value}`, 384);
+    core2.info(`NPM token written for ${hostname}`);
+  } catch (e) {
+    throw new Error(`Failed to write NPM token: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 function safeExportVariable(name, value) {
   try {
@@ -23081,9 +23151,15 @@ function getInputs() {
 
 // src/pre.ts
 async function runSync(inputs) {
+  let config = null;
   let creds;
   try {
-    creds = await issueCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId);
+    config = await getConfig(inputs.apiToken, inputs.apiHost, inputs.customerId);
+  } catch (e) {
+    core4.warning(`Failed to fetch perimeter instances configuration, continuing with static types only: ${e}`);
+  }
+  try {
+    creds = await issueCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, config?.instances ?? []);
     if (creds.aws) {
       core4.setSecret(creds.aws.awsAccessKeyId);
       core4.setSecret(creds.aws.awsSecretAccessKey);
@@ -23110,11 +23186,25 @@ async function runSync(inputs) {
       core4.warning(`Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  if (creds.http) {
+    for (const [instanceId, instance] of Object.entries(creds.http)) {
+      try {
+        const { hostNames, credentials } = instance;
+        if (hostNames.length === 0) {
+          throw new Error("No hostnames are defined");
+        }
+        const hostname = hostNames[0];
+        await deployHttp(instanceId, hostname, credentials);
+      } catch (error) {
+        core4.warning(`Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
   populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, creds);
   const confirmationIds = [
     creds.aws?.awsConfirmationId,
     creds.ssh?.sshConfirmationId
-  ].filter((id) => id !== undefined);
+  ].filter((id) => id !== undefined).concat(Object.values(creds.http ?? {}).map((c) => c.confirmationId));
   for (const confirmationId of confirmationIds) {
     try {
       await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, confirmationId);

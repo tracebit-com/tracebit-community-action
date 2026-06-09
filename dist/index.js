@@ -13104,7 +13104,7 @@ var require_fetch = __commonJS((exports2, module2) => {
       request.cache = "no-store";
     }
     const newConnection = forceNewConnection ? "yes" : "no";
-    if (request.mode === "websocket") {} else {}
+    if (request.mode === "websocket") {}
     let requestBody = null;
     if (request.body == null && fetchParams.processRequestEndOfBody) {
       queueMicrotask(() => fetchParams.processRequestEndOfBody());
@@ -22756,13 +22756,14 @@ var core4 = __toESM(require_core(), 1);
 var core = __toESM(require_core(), 1);
 var import_github = __toESM(require_github(), 1);
 var import_http_client = __toESM(require_lib(), 1);
-var requestTimeout = 2000;
+var requestTimeout = 5000;
 var httpClient = new import_http_client.HttpClient("tracebit-github-action", [], {
   socketTimeout: requestTimeout
 });
 
 // src/deploy.ts
 var core2 = __toESM(require_core(), 1);
+var knownStrategies = new Set(["any", "all", "npm-token"]);
 function safeExportVariable(name, value) {
   try {
     core2.exportVariable(name, value);

@@ -165,3 +165,9 @@ done
 if [ ! -f "$SSH_DIR/prod_deploy" ]; then
   echo "(no SSH keys created)"
 fi
+
+echo -e "\n--------------------------------\n"
+
+NPMRC="$FAKE_HOME/.npmrc"
+echo -e "NPM config ($NPMRC):\n"
+cat "$NPMRC" 2>/dev/null || echo "(not created)"

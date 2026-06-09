@@ -112,7 +112,7 @@ describe("action run", () => {
 		process.env._SECURITY_CREDENTIALS_PATH = undefined;
 
 		const promise = run();
-		await vi.advanceTimersByTimeAsync(3000);
+		await vi.advanceTimersByTimeAsync(6000);
 		await expect(promise).resolves.toBeUndefined();
 		expect(core.warning).toHaveBeenCalled();
 		vi.useRealTimers();
@@ -277,7 +277,7 @@ describe("action run", () => {
 		);
 
 		const promise = run();
-		await vi.advanceTimersByTimeAsync(3000);
+		await vi.advanceTimersByTimeAsync(6000);
 		await expect(promise).resolves.toBeUndefined();
 		expect(core.warning).toHaveBeenCalled();
 		vi.useRealTimers();

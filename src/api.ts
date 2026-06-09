@@ -3,8 +3,9 @@ import * as core from "@actions/core";
 import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
 import pkg from "../package.json";
+import type { TolerantDeploymentStrategy } from "./external-types/deployment-strategy";
 
-export const requestTimeout = 2_000;
+export const requestTimeout = 5_000;
 
 const httpClient = new HttpClient("tracebit-github-action", [], {
 	socketTimeout: requestTimeout, // Make sure the request doesn't take too long
@@ -29,6 +30,10 @@ function buildConfirmUrl(apiHost: string, customerId: string): string {
 	return `https://${customerId}.${apiHost}/api/v1/credentials/confirm-credentials`;
 }
 
+function buildGetConfigUrl(apiHost: string, customerId: string): string {
+	return `https://${customerId}.${apiHost}/api/_internal/v1/github/instances`;
+}
+
 function toNonEmptyLabels(
 	labels: Array<{ name: string; value: string }>,
 ): Array<{ name: string; value: string }> {
@@ -50,15 +55,34 @@ export interface IssuedSshCredentials {
 	sshExpiration: string;
 }
 
+export interface IssuedHttpCredentials {
+	confirmationId: string;
+	browserDeploymentId: string;
+	hostNames: string[];
+	expiresAt: string | null;
+	credentials: TolerantDeploymentStrategy;
+}
+
 export interface IssuedCredentials {
 	aws?: IssuedAwsCredentials;
 	ssh?: IssuedSshCredentials;
+	http?: Record<string, IssuedHttpCredentials>;
+}
+
+export interface Config {
+	instances?: ConfigInstance[];
+}
+
+export interface ConfigInstance {
+	key: string;
+	instanceId: string;
 }
 
 export async function issueCredentials(
 	token: string,
 	apiHost: string,
 	customerId: string,
+	httpInstances: ConfigInstance[],
 ): Promise<IssuedCredentials> {
 	const context = getGithubContext();
 	const uniqueId = randomUUID();
@@ -80,11 +104,17 @@ export async function issueCredentials(
 		{ name: "deployment_version", value: "2.0.0" },
 	]);
 
+	const typeConfigs = [
+		{ typeName: "aws" },
+		{ typeName: "ssh" },
+		...httpInstances.map((i) => ({ ...i, typeName: "http" })),
+	];
+
 	const payload = {
 		name: `${context.repository}@${context.workflow}`,
 		source: "github",
 		sourceType: "ci/cd",
-		types: ["aws", "ssh"],
+		typeConfigs,
 		labels,
 	};
 
@@ -106,25 +136,15 @@ export async function issueCredentials(
 	}
 
 	// TODO: add error catching to JSON parsing
-	const json = JSON.parse(responseText) as {
-		aws?: {
-			awsConfirmationId: string;
-			awsAccessKeyId: string;
-			awsSecretAccessKey: string;
-			awsSessionToken: string;
-		};
-		ssh?: {
-			sshConfirmationId: string;
-			sshIp: string;
-			sshPrivateKey: string;
-			sshPublicKey: string;
-			sshExpiration: string;
-		};
-	};
+	const json = JSON.parse(responseText) as IssuedCredentials;
 
-	if (!json.aws && !json.ssh) {
+	if (
+		!json.aws &&
+		!json.ssh &&
+		(!json.http || Object.keys(json.http).length === 0)
+	) {
 		throw new Error(
-			"No credentials were issued: neither AWS nor SSH credentials were returned",
+			"No credentials were issued: neither AWS, SSH nor HTTP credentials were returned",
 		);
 	}
 
@@ -157,4 +177,25 @@ export async function confirmCredentials(
 	}
 
 	core.info("Credentials confirmed");
+}
+
+export async function getConfig(
+	token: string,
+	apiHost: string,
+	customerId: string,
+): Promise<Config> {
+	const response = await httpClient.get(
+		buildGetConfigUrl(apiHost, customerId),
+		{
+			Authorization: `Bearer ${token}`,
+		},
+	);
+	const statusCode = response.message.statusCode ?? 0;
+	const responseText = await response.readBody();
+
+	if (statusCode < 200 || statusCode >= 300) {
+		throw new Error(`Failed to get config (${statusCode}): ${responseText}`);
+	}
+
+	return JSON.parse(responseText) as Config;
 }
