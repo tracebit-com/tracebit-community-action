@@ -1,12 +1,30 @@
 # Tracebit GitHub Action
 
-This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect supply chain attacks. Using [Tracebit Community Edition](https://community.tracebit.com/supplychainattacks) you can quickly pinpoint the exact workflow involved in the credential compromise.
+This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect and alert you if your repo becomes compromised. With [Tracebit Community Edition](https://community.tracebit.com/supplychainattacks) you can quickly pinpoint the exact workflow involved in the credential compromise.
+
+## Safety and trust
+
+This project was created by [Tracebit](https://tracebit.com/) to help protect projects and the people who work on them. It was built with the community in mind and will remain completely free. Here are some [customer case studies](https://tracebit.com/customers) from enterprises that use our canaries.
+
+| GitHub permission | What we use it for |
+|---|---|
+| Read - Actions & Metadata | To see your workflows and their runs, so we can place canaries in the right spot and calculate your coverage. The only data sent to Tracebit is run metadata - repo name, workflow, job, commit SHA, run ID - which ties an alert back to the exact pipeline if a canary fires. |
+| Read & write - Workflows | GitHub requires this specific permission to add our canary step to files in your `.github/workflows/` folder. |
+| Read & write - Code & Pull requests | To open a single pull request that adds the canary step to your workflows. You see the diff, then can approve and merge it if you're happy - we never push to your branches directly, and nothing changes until you say so. |
+
+## What is a canary?
+
+A canary is a decoy - a credential that looks exactly like a real one, but never gets used. The moment anyone interacts with it, you know something is wrong.
+
+This action plants AWS canary credentials and SSH canary keys directly into every workflow run. The credentials are indistinguishable from your real AWS and SSH keys to an attacker, and any attempt to use them triggers an alert in Tracebit. You get an immediate, high-confidence signal with no tuning and no false positives.
+
+To learn more about the value of canaries, we recommend reading [Grafana Labs' writeup on canary tokens](https://grafana.com/blog/canary-tokens-learn-all-about-the-unsung-heroes-of-security-at-grafana-labs/) - showing how they caught a compromised GitHub Action using canaries.
 
 ## Why use this action?
 
-CI/CD pipelines are a high-value target. Attackers who compromise a workflow - through a malicious dependency, a poisoned runner, or a stolen repository secret - will look for credentials they can exfiltrate and use elsewhere.
+Every npm install, pip install, and third-party action in your pipeline runs code you didn't write, with access to everything on your runner. CI/CD pipelines are a high-value target: attackers who compromise a workflow - through a malicious dependency, a poisoned runner, or a stolen repository secret - will look for credentials they can exfiltrate and use elsewhere.
 
-This action plants AWS canary credentials and SSH canary keys directly into every workflow run. The credentials are real AWS and SSH keys and any attempt to use them triggers an alert in Tracebit. You get immediate, high-confidence signal that something has gone wrong - no tuning, no false positives.
+If something you depend on gets compromised, your runner is at risk too. This action alerts you if that happens, so you know to rotate your own credentials and warn anyone who depends on your repo - protecting the wider community.
 
 ## What attacks does it catch?
 
@@ -28,6 +46,8 @@ Because the canary credentials are unique per run and tagged with the repo, work
 | **Trivy + trivy-action + setup-trivy** (TeamPCP) | Mar 19, 2026 | Compromised Aqua `aqua-bot` service account; 75+ action tags force-pushed to malicious versions | Three-stage payload: read `/proc/<pid>/mem` for secrets, swept `~/.aws/` and 50+ credential file paths, exfiltrated encrypted bundle to typosquatted C2 domain | On GitHub-hosted Linux runners, the payload scraped `Runner.Worker` process memory via `/proc/<pid>/mem` for GitHub secrets. On all other environments, it targeted `~/.aws/credentials` and 50+ credential file paths on. Tracebit canary keys would be collected in either case. |
 | **Checkmarx KICS GitHub Action** (TeamPCP) | Mar 23, 2026 | Compromised `cx-plugins-releases` service account; all 35 action tags re-pointed | Harvested env vars, SSH keys, cloud creds; dumped `Runner.Worker` process memory via `/proc/<pid>/mem`; queried AWS IMDS for cloud credentials | Same credential harvesting as Trivy attack: canary AWS keys in `~/.aws/credentials` and process memory would all be collected. |
 | **LiteLLM PyPI package** (TeamPCP) | Mar 24, 2026 | Trojanized PyPI versions 1.82.7 & 1.82.8; triggered on import or via `.pth` file on every Python invocation | Swept `~/.aws/`, env vars, Kubernetes configs; **actively called AWS Secrets Manager and SSM Parameter Store** using harvested creds; exfiltrated to `models.litellm.cloud` | The malware didn't just steal credentials, it **actively called AWS APIs** (ListSecrets, GetSecretValue, DescribeParameters) with any AWS keys it found. Tracebit canary keys in `~/.aws/credentials` or env vars would be used in these API calls, generating an high-confidence alert the moment the malware attempts to authenticate. |
+
+In our research, we have reproduced the Trivy attack in a real workflow to see how canaries would have detected it - [Detecting CI/CD Supply Chain Attacks with Canary Credentials](https://tracebit.com/blog/detecting-cicd-supply-chain-attacks-with-canary-credentials).
 
 1. https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack
 2. https://www.wiz.io/blog/teampcp-attack-kics-github-action
