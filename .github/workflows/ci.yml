@@ -23,7 +23,11 @@ jobs:
         uses: tracebit-com/tracebit-community-action@d0a68cb29196eafce908de76ec596a7e9ca049da
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
-          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          # Fork PRs don't receive repository secrets, which fails the
+          # required-input check in the action's pre step (pre runs even if
+          # the step has an `if` condition). Fall back to a placeholder:
+          # with an invalid token the action warns and continues.
+          api-token: ${{ secrets.SECURITY_API_TOKEN || 'fork-pr-placeholder' }}
           profile: administrator
           profile-region: us-east-1
 
@@ -53,7 +57,11 @@ jobs:
         uses: tracebit-com/tracebit-community-action@d0a68cb29196eafce908de76ec596a7e9ca049da
         with:
           customer-id: ${{ vars.SECURITY_CUSTOMER_ID }}
-          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          # Fork PRs don't receive repository secrets, which fails the
+          # required-input check in the action's pre step (pre runs even if
+          # the step has an `if` condition). Fall back to a placeholder:
+          # with an invalid token the action warns and continues.
+          api-token: ${{ secrets.SECURITY_API_TOKEN || 'fork-pr-placeholder' }}
           profile: administrator
           profile-region: us-east-1
 
