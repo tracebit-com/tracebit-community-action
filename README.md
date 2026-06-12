@@ -9,8 +9,8 @@ This project was created by [Tracebit](https://tracebit.com/) to help protect pr
 | GitHub permission | What we use it for |
 |---|---|
 | Read - Actions & Metadata | To see your workflows and their runs, so we can place canaries in the right spot and calculate your coverage. The only data sent to Tracebit is run metadata - repo name, workflow, job, commit SHA, run ID - which ties an alert back to the exact pipeline if a canary fires. |
-| Read & write - Workflows | GitHub requires this specific permission to add our canary step to files in your `.github/workflows/` folder. |
-| Read & write - Code & Pull requests | To open a single pull request that adds the canary step to your workflows. You see the diff, then can approve and merge it if you're happy - we never push to your branches directly, and nothing changes until you say so. |
+| Read & write - Workflows | GitHub requires this specific permission to add our canary step to files in your `.github/workflows/` folder. We only add the canary step - we never remove or modify anything else in your workflows. |
+| Read & write - Code & Pull requests | To open a pull request that adds the canary step to your workflows. You see the diff, then can approve and merge it if you're happy - we never push to your branches directly, and nothing changes until you say so. |
 
 ## What is a canary?
 
