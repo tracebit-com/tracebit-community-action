@@ -12,6 +12,11 @@ This project was created by [Tracebit](https://tracebit.com/) to help protect pr
 | Read & write - Workflows | GitHub requires this specific permission to add our canary step to files in your `.github/workflows/` folder. We only add the canary step - we never remove or modify anything else in your workflows. |
 | Read & write - Code & Pull requests | To open a pull request that adds the canary step to your workflows. You see the diff, then can approve and merge it if you're happy - we never push to your branches directly, and nothing changes until you say so. |
 
+### What we never do
+- Touch your real secrets and keys - they never reach our infrastructure. The only credentials we handle are the decoys we issue.
+- Read your source code, business logic, or environments. The only code we look at is the workflow files we integrate with.
+- Merge, deploy, or change anything outside the pull request you approve.
+
 ## What is a canary?
 
 A canary is a decoy - a credential that looks exactly like a real one, but never gets used. The moment anyone interacts with it, you know something is wrong.
