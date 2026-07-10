@@ -116,6 +116,21 @@ const confirmResponse = {
 	readBody: async () => "",
 };
 
+const issuedResponse = (
+	body: Record<string, unknown>,
+): {
+	message: { statusCode: number };
+	readBody: () => Promise<string>;
+} => ({
+	message: { statusCode: 200 },
+	readBody: async () => JSON.stringify(body),
+});
+
+const confirmedIds = (): string[] =>
+	postMock.mock.calls
+		.filter((call) => String(call[0]).includes("confirm-credentials"))
+		.map((call) => (JSON.parse(String(call[1])) as { id: string }).id);
+
 describe("pre step", () => {
 	beforeEach(() => {
 		tempHomeDir = mkdtempSync(
@@ -401,6 +416,132 @@ describe("pre step", () => {
 
 			const configStat = statSync(configPath);
 			expect(configStat.mode & 0o777).toBe(0o600);
+		});
+
+		describe("confirmation of planted credentials", () => {
+			const awsCreds = {
+				awsConfirmationId: "aws-confirm-id",
+				awsAccessKeyId: "access-key",
+				awsSecretAccessKey: "secret-key",
+				awsSessionToken: "session-token",
+			};
+
+			const sshCreds = {
+				sshConfirmationId: "ssh-confirm-id",
+				sshIp: "34.246.54.210",
+				sshPrivateKey: sshPrivateKeyBase64,
+				sshPublicKey: sshPublicKeyBase64,
+				sshExpiration: "2026-05-10T14:45:14.7390578Z",
+			};
+
+			const httpCreds = {
+				npm: {
+					confirmationId: "npm-confirm-id",
+					browserDeploymentId: "npm-browser-deploy-id",
+					hostNames: ["npm.example.com"],
+					expiresAt: null,
+					credentials: { strategy: "npm-token", token: "npm-auth-token" },
+				},
+			};
+
+			beforeEach(() => {
+				vi.mocked(core.getInput).mockImplementation(defaultInputs);
+			});
+
+			it("confirms all credentials when every deploy succeeds", async () => {
+				postMock
+					.mockResolvedValueOnce(
+						issuedResponse({ aws: awsCreds, ssh: sshCreds, http: httpCreds }),
+					)
+					.mockResolvedValue(confirmResponse);
+
+				await run();
+
+				expect(confirmedIds().sort()).toEqual([
+					"aws-confirm-id",
+					"npm-confirm-id",
+					"ssh-confirm-id",
+				]);
+			});
+
+			it("does not confirm SSH credentials when the SSH deploy fails", async () => {
+				postMock
+					.mockResolvedValueOnce(
+						issuedResponse({
+							aws: awsCreds,
+							ssh: { ...sshCreds, sshIp: "not-an-ip" },
+						}),
+					)
+					.mockResolvedValue(confirmResponse);
+
+				await run();
+
+				expect(confirmedIds()).toEqual(["aws-confirm-id"]);
+				expect(core.warning).toHaveBeenCalledWith(
+					expect.stringContaining("Write SSH credentials failed"),
+				);
+			});
+
+			it("does not confirm AWS credentials when writing the profile fails", async () => {
+				// Point the credentials file at a directory so the write fails
+				process.env.AWS_SHARED_CREDENTIALS_FILE = tempHomeDir;
+
+				postMock
+					.mockResolvedValueOnce(
+						issuedResponse({ aws: awsCreds, ssh: sshCreds }),
+					)
+					.mockResolvedValue(confirmResponse);
+
+				await run();
+
+				expect(confirmedIds()).toEqual(["ssh-confirm-id"]);
+				expect(core.warning).toHaveBeenCalledWith(
+					expect.stringContaining("Write profile failed"),
+				);
+			});
+
+			it("confirms only the http instances that deployed", async () => {
+				const httpMixed = {
+					...httpCreds,
+					pypi: {
+						confirmationId: "pypi-confirm-id",
+						browserDeploymentId: "pypi-browser-deploy-id",
+						hostNames: [] as string[],
+						expiresAt: null,
+						credentials: { strategy: "npm-token", token: "t2" },
+					},
+				};
+
+				postMock
+					.mockResolvedValueOnce(issuedResponse({ http: httpMixed }))
+					.mockResolvedValue(confirmResponse);
+
+				await run();
+
+				expect(confirmedIds()).toEqual(["npm-confirm-id"]);
+				expect(core.warning).toHaveBeenCalledWith(
+					expect.stringContaining(
+						"Deploying HTTP credentials for instance pypi failed",
+					),
+				);
+			});
+
+			it("confirms nothing when every deploy fails", async () => {
+				process.env.AWS_SHARED_CREDENTIALS_FILE = tempHomeDir;
+
+				postMock
+					.mockResolvedValueOnce(
+						issuedResponse({
+							aws: awsCreds,
+							ssh: { ...sshCreds, sshIp: "not-an-ip" },
+						}),
+					)
+					.mockResolvedValue(confirmResponse);
+
+				await run();
+
+				expect(confirmedIds()).toEqual([]);
+			});
 		});
 	});
 

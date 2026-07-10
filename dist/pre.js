@@ -23172,9 +23172,11 @@ async function runSync(inputs) {
     core4.warning(`Issue credentials failed: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
+  const confirmationIds = [];
   if (creds.aws) {
     try {
       await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+      confirmationIds.push(creds.aws.awsConfirmationId);
     } catch (error) {
       core4.warning(`Write profile failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -23182,6 +23184,7 @@ async function runSync(inputs) {
   if (creds.ssh) {
     try {
       await writeSshCredentials(creds.ssh);
+      confirmationIds.push(creds.ssh.sshConfirmationId);
     } catch (error) {
       core4.warning(`Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -23195,17 +23198,17 @@ async function runSync(inputs) {
         }
         const hostname = hostNames[0];
         await deployHttp(instanceId, hostname, credentials);
+        confirmationIds.push(instance.confirmationId);
       } catch (error) {
         core4.warning(`Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
   populateGitHubVars(inputs.envPrefix, inputs.region, inputs.profileName, creds);
-  const confirmationIds = [
-    creds.aws?.awsConfirmationId,
-    creds.ssh?.sshConfirmationId
-  ].filter((id) => id !== undefined).concat(Object.values(creds.http ?? {}).map((c) => c.confirmationId));
   for (const confirmationId of confirmationIds) {
+    if (confirmationId == null) {
+      continue;
+    }
     try {
       await confirmCredentials(inputs.apiToken, inputs.apiHost, inputs.customerId, confirmationId);
     } catch (error) {

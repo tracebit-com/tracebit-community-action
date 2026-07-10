@@ -53,9 +53,12 @@ export async function run(): Promise<void> {
 
 	fs.writeFileSync(credentialsPath, JSON.stringify(creds));
 
+	const confirmationIds: string[] = [];
+
 	if (creds.aws) {
 		try {
 			await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
+			confirmationIds.push(creds.aws.awsConfirmationId);
 		} catch (error) {
 			const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
 			fs.appendFileSync(
@@ -69,6 +72,7 @@ export async function run(): Promise<void> {
 	if (creds.ssh) {
 		try {
 			await writeSshCredentials(creds.ssh);
+			confirmationIds.push(creds.ssh.sshConfirmationId);
 		} catch (error) {
 			const message = `Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`;
 			fs.appendFileSync(
@@ -89,6 +93,7 @@ export async function run(): Promise<void> {
 				const hostname = hostNames[0];
 
 				await deployHttp(instanceId, hostname, credentials);
+				confirmationIds.push(instance.confirmationId);
 			} catch (error) {
 				const message = `Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`;
 				fs.appendFileSync(
@@ -100,14 +105,10 @@ export async function run(): Promise<void> {
 		}
 	}
 
-	const confirmationIds = [
-		creds.aws?.awsConfirmationId,
-		creds.ssh?.sshConfirmationId,
-	]
-		.filter((id): id is string => id !== undefined)
-		.concat(Object.values(creds.http ?? {}).map((c) => c.confirmationId));
-
 	for (const confirmationId of confirmationIds) {
+		if (confirmationId == null) {
+			continue;
+		}
 		try {
 			await confirmCredentials(
 				inputs.apiToken,

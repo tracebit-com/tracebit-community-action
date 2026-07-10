@@ -112,6 +112,11 @@ const confirmFail = {
 	readBody: async () => "confirm failed",
 };
 
+const confirmedIds = (): string[] =>
+	postMock.mock.calls
+		.filter((call) => String(call[0]).includes("confirm-credentials"))
+		.map((call) => (JSON.parse(String(call[1])) as { id: string }).id);
+
 describe("run-async", () => {
 	beforeEach(() => {
 		tempHomeDir = mkdtempSync(
@@ -219,10 +224,7 @@ describe("run-async", () => {
 
 		postMock
 			.mockResolvedValueOnce(issuedResponse({ http: httpTwoBroken }))
-			// 2 confirmation calls (one per http instance) — both succeed so they
-			// don't add extra error entries
-			.mockResolvedValueOnce(confirmOk)
-			.mockResolvedValueOnce(confirmOk);
+			.mockResolvedValue(confirmOk);
 
 		await run();
 
@@ -236,5 +238,108 @@ describe("run-async", () => {
 		expect(entries[1]).toMatch(
 			/Deploying HTTP credentials for instance pypi failed/,
 		);
+	});
+
+	describe("confirmation of planted credentials", () => {
+		const httpCreds = {
+			npm: {
+				confirmationId: "npm-confirm-id",
+				browserDeploymentId: "npm-browser-deploy-id",
+				hostNames: ["npm.example.com"],
+				expiresAt: null,
+				credentials: { strategy: "npm-token", token: "npm-auth-token" },
+			},
+		};
+
+		it("confirms all credentials when every deploy succeeds", async () => {
+			postMock
+				.mockResolvedValueOnce(
+					issuedResponse({ aws: awsCreds, ssh: sshCreds, http: httpCreds }),
+				)
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds().sort()).toEqual([
+				"aws-confirm-id",
+				"npm-confirm-id",
+				"ssh-confirm-id",
+			]);
+			expect(existsSync(errorPath)).toBe(false);
+		});
+
+		it("does not confirm SSH credentials when the SSH deploy fails", async () => {
+			postMock
+				.mockResolvedValueOnce(
+					issuedResponse({
+						aws: awsCreds,
+						ssh: { ...sshCreds, sshIp: "not-an-ip" },
+					}),
+				)
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds()).toEqual(["aws-confirm-id"]);
+			const contents = readFileSync(errorPath, "utf8");
+			expect(contents).toMatch(/Write SSH credentials failed/);
+		});
+
+		it("does not confirm AWS credentials when writing the profile fails", async () => {
+			// Point the credentials file at a directory so the write fails
+			process.env.AWS_SHARED_CREDENTIALS_FILE = tempHomeDir;
+
+			postMock
+				.mockResolvedValueOnce(issuedResponse({ aws: awsCreds, ssh: sshCreds }))
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds()).toEqual(["ssh-confirm-id"]);
+			const contents = readFileSync(errorPath, "utf8");
+			expect(contents).toMatch(/Write profile failed/);
+		});
+
+		it("confirms only the http instances that deployed", async () => {
+			const httpMixed = {
+				...httpCreds,
+				pypi: {
+					confirmationId: "pypi-confirm-id",
+					browserDeploymentId: "pypi-browser-deploy-id",
+					hostNames: [] as string[],
+					expiresAt: null,
+					credentials: { strategy: "npm-token", token: "t2" },
+				},
+			};
+
+			postMock
+				.mockResolvedValueOnce(issuedResponse({ http: httpMixed }))
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds()).toEqual(["npm-confirm-id"]);
+			const contents = readFileSync(errorPath, "utf8");
+			expect(contents).toMatch(
+				/Deploying HTTP credentials for instance pypi failed/,
+			);
+		});
+
+		it("confirms nothing when every deploy fails", async () => {
+			process.env.AWS_SHARED_CREDENTIALS_FILE = tempHomeDir;
+
+			postMock
+				.mockResolvedValueOnce(
+					issuedResponse({
+						aws: awsCreds,
+						ssh: { ...sshCreds, sshIp: "not-an-ip" },
+					}),
+				)
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds()).toEqual([]);
+		});
 	});
 });
