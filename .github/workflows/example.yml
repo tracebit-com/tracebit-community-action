@@ -40,11 +40,13 @@ jobs:
         run: printenv
 
       - name: Show aws config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: |
           cat ~/.aws/config
           cat ~/.aws/credentials
 
       - name: Show ssh config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
         run: |
           cat ~/.ssh/config 2>/dev/null || echo "(no ssh config)"
           echo "---"
