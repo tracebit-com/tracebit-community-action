@@ -22955,9 +22955,8 @@ async function writeSshCredentials(ssh) {
   ].join(`
 `);
   await appendToFile(configFile, hostConfig);
-  core2.info(`SSH credentials written for ${ssh.sshIp}`);
 }
-var knownStrategies = new Set(["any", "all", "npm-token"]);
+var knownStrategies = new Set(["any", "all", "npm-token", "python-index"]);
 function isKnownDeploymentStrategy(strategy) {
   return knownStrategies.has(strategy.strategy);
 }
@@ -22972,6 +22971,8 @@ async function deployHttp(instanceId, hostname, strategy) {
       return deployAny(instanceId, hostname, strategy);
     case "npm-token":
       return writeNpmToken(instanceId, hostname, strategy);
+    case "python-index":
+      return writePythonIndex(instanceId, hostname, strategy);
   }
 }
 async function deployAny(instanceId, hostname, any) {
@@ -23005,9 +23006,26 @@ async function writeNpmToken(_instanceId, hostname, npmToken) {
     const value = token.includes("=") ? `"${token}"` : token;
     const npmrcPath = import_node_path.default.join(os.homedir(), ".npmrc");
     await appendToFile(npmrcPath, `${key}=${value}`, 384);
-    core2.info(`NPM token written for ${hostname}`);
+    populateTokenVars("NPM", "npm", token);
   } catch (e) {
     throw new Error(`Failed to write NPM token: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+async function writePythonIndex(_instanceId, hostname, pythonIndex) {
+  try {
+    const { token } = pythonIndex;
+    core2.setSecret(token);
+    const netrcBlock = [
+      `machine ${hostname}`,
+      "login __token__",
+      `password ${token}`
+    ].join(`
+`);
+    const netrcPath = import_node_path.default.join(os.homedir(), ".netrc");
+    await appendToFile(netrcPath, netrcBlock, 384);
+    populateTokenVars("PYPI", "pypi", token);
+  } catch (e) {
+    throw new Error(`Failed to write PyPI credentials: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 function safeExportVariable(name, value) {
@@ -23086,6 +23104,17 @@ function populateGitHubVars(envPrefix, region, profileName, creds) {
     safeSetSecret(sshPrivateKeyFormat);
     safeSetSecret(sshIpFormat);
   }
+}
+function populateTokenVars(envName, outputName, token) {
+  safeExportVariable(`${envName}_TOKEN`, token);
+  safeSetOutput(`${outputName}-token`, token);
+  safeSaveState(`${outputName}-token`, token);
+  const tokenSecretFormat = `"${envName}_TOKEN_SECRET":{"value":"${token}","isSecret":true}`;
+  safeExportVariable(`${envName}_TOKEN_SECRET`, tokenSecretFormat);
+  safeSetOutput(`${outputName}-token-secret`, tokenSecretFormat);
+  safeSaveState(`${outputName}-token-secret`, tokenSecretFormat);
+  safeSetSecret(token);
+  safeSetSecret(tokenSecretFormat);
 }
 
 // src/inputs.ts

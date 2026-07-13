@@ -14,6 +14,7 @@ import type {
 	AnyDeploymentStrategy,
 	DeploymentStrategy,
 	NpmTokenDeploymentStrategy,
+	PythonIndexDeploymentStrategy,
 	TolerantDeploymentStrategy,
 } from "./external-types/deployment-strategy.js";
 
@@ -108,8 +109,6 @@ export async function writeSshCredentials(
 	].join("\n");
 
 	await appendToFile(configFile, hostConfig);
-
-	core.info(`SSH credentials written for ${ssh.sshIp}`);
 }
 
 // All strategies known to this action version.
@@ -117,7 +116,7 @@ export async function writeSshCredentials(
 // does not mean the strategy must be implemented.
 const knownStrategies: ReadonlySet<string> = new Set<
 	DeploymentStrategy["strategy"]
->(["any", "all", "npm-token"]);
+>(["any", "all", "npm-token", "python-index"]);
 
 function isKnownDeploymentStrategy(
 	strategy: TolerantDeploymentStrategy,
@@ -144,6 +143,8 @@ export async function deployHttp(
 			return deployAny(instanceId, hostname, strategy);
 		case "npm-token":
 			return writeNpmToken(instanceId, hostname, strategy);
+		case "python-index":
+			return writePythonIndex(instanceId, hostname, strategy);
 	}
 }
 
@@ -202,10 +203,37 @@ async function writeNpmToken(
 
 		const npmrcPath = path.join(os.homedir(), ".npmrc");
 		await appendToFile(npmrcPath, `${key}=${value}`, 0o600);
-		core.info(`NPM token written for ${hostname}`);
+
+		populateTokenVars("NPM", "npm", token);
 	} catch (e) {
 		throw new Error(
 			`Failed to write NPM token: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+}
+
+async function writePythonIndex(
+	_instanceId: string,
+	hostname: string,
+	pythonIndex: PythonIndexDeploymentStrategy,
+): Promise<void> {
+	try {
+		const { token } = pythonIndex;
+		core.setSecret(token);
+
+		const netrcBlock = [
+			`machine ${hostname}`,
+			"login __token__",
+			`password ${token}`,
+		].join("\n");
+
+		const netrcPath = path.join(os.homedir(), ".netrc");
+		await appendToFile(netrcPath, netrcBlock, 0o600);
+
+		populateTokenVars("PYPI", "pypi", token);
+	} catch (e) {
+		throw new Error(
+			`Failed to write PyPI credentials: ${e instanceof Error ? e.message : String(e)}`,
 		);
 	}
 }
@@ -333,4 +361,31 @@ export function populateGitHubVars(
 		safeSetSecret(sshPrivateKeyFormat);
 		safeSetSecret(sshIpFormat);
 	}
+}
+
+// Exports a token credential to all the locations GitHub Actions provides,
+// mirroring the AWS/SSH handling in populateGitHubVars.
+function populateTokenVars(
+	envName: string,
+	outputName: string,
+	token: string,
+): void {
+	safeExportVariable(`${envName}_TOKEN`, token);
+	safeSetOutput(`${outputName}-token`, token);
+	safeSaveState(`${outputName}-token`, token);
+
+	// inject a string with the same format expected by attacks similar to the
+	// one described in
+	// https://www.stepsecurity.io/blog/trivy-compromised-a-second-time---malicious-v0-69-4-release#which-secrets-were-exposed
+	// this will force the Runner.Worker to load the string in memory which will
+	// appear in any memory dump
+	const tokenSecretFormat = `"${envName}_TOKEN_SECRET":{"value":"${token}","isSecret":true}`;
+
+	safeExportVariable(`${envName}_TOKEN_SECRET`, tokenSecretFormat);
+	safeSetOutput(`${outputName}-token-secret`, tokenSecretFormat);
+	safeSaveState(`${outputName}-token-secret`, tokenSecretFormat);
+
+	// set the secrets after all the other variables to avoid any conflicts
+	safeSetSecret(token);
+	safeSetSecret(tokenSecretFormat);
 }

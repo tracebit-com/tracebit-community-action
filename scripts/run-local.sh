@@ -171,3 +171,9 @@ echo -e "\n--------------------------------\n"
 NPMRC="$FAKE_HOME/.npmrc"
 echo -e "NPM config ($NPMRC):\n"
 cat "$NPMRC" 2>/dev/null || echo "(not created)"
+
+echo -e "\n--------------------------------\n"
+
+NETRC="$FAKE_HOME/.netrc"
+echo -e "netrc ($NETRC):\n"
+cat "$NETRC" 2>/dev/null || echo "(not created)"

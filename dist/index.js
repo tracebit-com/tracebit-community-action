@@ -22763,7 +22763,7 @@ var httpClient = new import_http_client.HttpClient("tracebit-github-action", [],
 
 // src/deploy.ts
 var core2 = __toESM(require_core(), 1);
-var knownStrategies = new Set(["any", "all", "npm-token"]);
+var knownStrategies = new Set(["any", "all", "npm-token", "python-index"]);
 function safeExportVariable(name, value) {
   try {
     core2.exportVariable(name, value);

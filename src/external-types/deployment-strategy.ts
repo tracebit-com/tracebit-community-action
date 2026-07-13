@@ -12,6 +12,7 @@ export type DeploymentStrategy<UnknownStrategy = never> =
 	| CustomDeploymentStrategy
 	| CookieDeploymentStrategy
 	| NpmTokenDeploymentStrategy
+	| PythonIndexDeploymentStrategy
 	| UsernamePasswordDeploymentStrategy
 	| BrowserDeploymentStrategy
 	| UnknownStrategy;
@@ -60,6 +61,17 @@ export type Cookie = {
 export type NpmTokenDeploymentStrategy = {
 	strategy: "npm-token";
 	token: string;
+};
+
+/** Deploys a canary credential as a Python package index (PyPI) API token,
+ * scoped to the hostname of the canary instance. Deployers should write this
+ * as a `machine` entry in `~/.netrc` (login `__token__`) or an equivalent
+ * pip/twine config.
+ * @see https://pip.pypa.io/en/stable/topics/authentication/#netrc-support */
+export type PythonIndexDeploymentStrategy = {
+	strategy: "python-index";
+	token: string;
+	indexName: string;
 };
 
 export type BrowserDeploymentStrategy = {

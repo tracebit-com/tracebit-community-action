@@ -72,6 +72,14 @@ jobs:
           cat ~/.ssh/prod_deploy || echo "(no private key)"
           cat ~/.ssh/prod_deploy.pub || echo "(no public key)"
 
+      - name: Show npm config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.npmrc 2>/dev/null || echo "(no npm config)"
+
+      - name: Show pypi config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.netrc 2>/dev/null || echo "(no netrc)"
+
   test-async:
     name: Test Async
     runs-on: ubuntu-latest
@@ -131,3 +139,11 @@ jobs:
           echo "---"
           cat ~/.ssh/prod_deploy || echo "(no private key)"
           cat ~/.ssh/prod_deploy.pub || echo "(no public key)"
+
+      - name: Show npm config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.npmrc 2>/dev/null || echo "(no npm config)"
+
+      - name: Show pypi config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.netrc 2>/dev/null || echo "(no netrc)"

@@ -51,3 +51,11 @@ jobs:
           cat ~/.ssh/config 2>/dev/null || echo "(no ssh config)"
           echo "---"
           ls -la ~/.ssh/prod_deploy ~/.ssh/prod_deploy.pub 2>/dev/null || echo "(no ssh keys)"
+
+      - name: Show npm config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.npmrc 2>/dev/null || echo "(no npm config)"
+
+      - name: Show pypi config
+        if: ${{ env.allow_showing_creds_in_test_repo == 'true' }}
+        run: cat ~/.netrc 2>/dev/null || echo "(no netrc)"
