@@ -1,11 +1,6 @@
-<a href="https://community.tracebit.com/supplychainattacks">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/icons/tracebit-pill-dark.svg">
-    <img alt="Protected by Tracebit Community Edition" src="assets/icons/tracebit-pill-light.svg" height="40">
-  </picture>
-</a>
-
 # Tracebit GitHub Action
+
+[![Protected by Tracebit Community Edition](assets/badges/tracebit-badge.svg)](https://community.tracebit.com/supplychainattacks)
 
 This Action safely and automatically injects AWS canary credentials and SSH canary keys (honeytokens) into your build pipelines to detect and alert you if your repo becomes compromised. With [Tracebit Community Edition](https://community.tracebit.com/supplychainattacks) you can quickly pinpoint the exact workflow involved in the credential compromise.
 
@@ -217,3 +212,29 @@ npm run run:local
 ```
 
 Requires Node 24+.
+
+## Add the badge to your README
+
+Running this action? Add a badge saying your repo is protected. It links back to our Community
+Edition page.
+
+Save [`tracebit-badge.svg`](assets/badges/tracebit-badge.svg) into your own repo, then paste this
+into your badge row:
+
+```markdown
+[![Protected by Tracebit Community Edition](.github/assets/tracebit-badge.svg)](https://community.tracebit.com/supplychainattacks)
+```
+
+The first address is where you saved the file, so change it to wherever that is. The second is the
+link and stays exactly as it is.
+
+Would rather not host the file? Put our copy in the first address instead, though your README then
+depends on us:
+`https://raw.githubusercontent.com/tracebit-com/tracebit-community-action/v1/assets/badges/tracebit-badge.svg`
+
+For a narrower badge, use [`tracebit-badge-compact.svg`](assets/badges/tracebit-badge-compact.svg)
+(184x20, no "Community Edition" wording) in place of the full 331x20 one.
+
+Do not set a `width` or `height`: the file is already 20px tall, and resizing it stops it matching
+the badges beside it. One file covers both light and dark GitHub, so please do not recolour,
+stretch or crop it — ask us if you need a variant we do not ship.
