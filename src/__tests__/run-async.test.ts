@@ -171,6 +171,20 @@ describe("run-async", () => {
 		expect(existsSync(errorPath)).toBe(false);
 	});
 
+	it("writes credentials atomically and leaves no temp file behind", async () => {
+		postMock
+			.mockResolvedValueOnce(issuedResponse({ aws: awsCreds }))
+			.mockResolvedValueOnce(confirmOk);
+
+		await run();
+
+		expect(existsSync(credentialsPath)).toBe(true);
+		expect(existsSync(`${credentialsPath}.tmp`)).toBe(false);
+		expect(JSON.parse(readFileSync(credentialsPath, "utf8"))).toEqual({
+			aws: awsCreds,
+		});
+	});
+
 	it("writes a single error entry when issuing credentials fails", async () => {
 		postMock.mockResolvedValueOnce({
 			message: { statusCode: 500 },

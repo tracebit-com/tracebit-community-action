@@ -69,7 +69,16 @@ In our research, we have reproduced the Trivy attack in a real workflow to see h
 4. Tracebit monitors for any use of those credentials. If they are used, you get an alert with full context.
 5. At the end of the workflow run, the action confirms to Tracebit that the run completed normally. This closes the expected activity window and means any future use of those credentials is immediately flagged as suspicious.
 
-The action runs blocking by default. Use (`async: true`) if you have strict latency requirements for your pipelines.
+### Sync vs. async mode
+
+The action runs blocking by default: it calls the Tracebit API, writes the credentials, and only then lets your workflow continue. This typically adds a second or two to the job.
+
+With `async: true` the work is split across the action's two phases so it adds close to zero latency:
+
+- **Pre phase** - runs before *any* step in the job, regardless of where the action appears in your `steps` list. It kicks off credential issuance in a detached background process and returns immediately.
+- **Main phase** - runs at the position where you placed the action. It waits for the background process to finish (usually it already has), then exports the credentials as environment variables for every following step.
+
+This is why placement matters in async mode. **Put the action as the second step, directly after `actions/checkout`.** The background issuance then overlaps with the checkout, so by the time the main phase runs the credentials are ready and no waiting happens. Placing it first gains nothing (the main phase would just block until issuance completes, same as sync mode), and placing it later leaves the earlier steps unprotected.
 
 ## Prerequisites: Tracebit Community Edition
 
@@ -94,7 +103,9 @@ After registering, add the following to your repository or organization:
 
 ### 2. Add the action to your workflow
 
-Insert the action **before** any step that runs untrusted code (dependency installs, build scripts, test runners):
+Insert the action **before** any step that runs untrusted code (dependency installs, build scripts, test runners).
+
+In async mode (recommended), make it the **second step, directly after `actions/checkout`**. Credentials are issued in the background while the checkout runs, and are exported to the environment when this step is reached - see [Sync vs. async mode](#sync-vs-async-mode).
 
 ```yaml
 - name: Configure credentials
@@ -123,6 +134,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
+      # Second step, right after checkout. In async mode credentials are
+      # issued in the background during checkout and exported here.
       - name: Configure credentials
         uses: tracebit-com/tracebit-community-action@d0a68cb29196eafce908de76ec596a7e9ca049da
         with:
@@ -153,7 +166,7 @@ To configure the credentials once for the whole organization:
 | `api-token` | Yes | - | Your Tracebit API token |
 | `profile` | Yes | - | AWS profile name to write to `~/.aws/credentials` |
 | `profile-region` | Yes | - | AWS region to configure for the profile |
-| `async` | No | `false` | Run the credential issuance in the background so subsequent steps are not delayed. Recommended. |
+| `async` | No | `false` | Run the credential issuance in the background so subsequent steps are not delayed. Recommended. Place the action as the second step, directly after `actions/checkout` - see [Sync vs. async mode](#sync-vs-async-mode). |
 
 ## Outputs
 

@@ -39,6 +39,7 @@ jobs:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
           profile-region: us-east-1
+          async: true
 
       - name: Configure Git
         run: |

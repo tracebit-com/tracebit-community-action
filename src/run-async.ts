@@ -51,7 +51,11 @@ export async function run(): Promise<void> {
 		return;
 	}
 
-	fs.writeFileSync(credentialsPath, JSON.stringify(creds));
+	// Write to a temp file and rename so the main step never observes a
+	// partially written file (rename is atomic on the same filesystem).
+	const tmpPath = `${credentialsPath}.tmp`;
+	fs.writeFileSync(tmpPath, JSON.stringify(creds));
+	fs.renameSync(tmpPath, credentialsPath);
 
 	const confirmationIds: string[] = [];
 
@@ -129,6 +133,18 @@ export async function run(): Promise<void> {
 
 if (require.main === module) {
 	run().catch((error) => {
-		core.setFailed(error instanceof Error ? error.message : String(error));
+		const message = `Async credential issuance failed: ${error instanceof Error ? error.message : String(error)}`;
+		const credentialsPath = process.env.CREDENTIALS_PATH;
+		if (credentialsPath !== undefined) {
+			try {
+				fs.appendFileSync(
+					`${credentialsPath}.error`,
+					`[${new Date().toISOString()}] ${message}\n`,
+				);
+			} catch {
+				// nothing more we can do from a detached process
+			}
+		}
+		core.warning(message);
 	});
 }

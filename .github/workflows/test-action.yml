@@ -32,6 +32,7 @@ jobs:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
           profile-region: us-east-1
+          async: true
 
       - name: Run pre step
         run: node dist/pre.js
@@ -98,6 +99,7 @@ jobs:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
           profile-region: us-east-1
+          async: true
 
       - name: Run pre step
         run: node dist/pre.js

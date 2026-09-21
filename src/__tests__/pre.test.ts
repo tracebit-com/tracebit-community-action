@@ -572,6 +572,23 @@ describe("pre step", () => {
 			expect(core.saveState).toHaveBeenCalledWith("async_pid", "12345");
 		});
 
+		it("warns instead of failing when fork throws unexpectedly", async () => {
+			vi.mocked(core.getInput).mockImplementation((name) => {
+				if (name === "async") return "true";
+				return defaultInputs(name);
+			});
+
+			forkMock.mockImplementation(() => {
+				throw new Error("spawn EACCES");
+			});
+
+			await expect(run()).resolves.toBeUndefined();
+			expect(core.setFailed).not.toHaveBeenCalled();
+			expect(core.warning).toHaveBeenCalledWith(
+				expect.stringContaining("spawn EACCES"),
+			);
+		});
+
 		it("does not throw when fork fails", async () => {
 			vi.mocked(core.getInput).mockImplementation((name) => {
 				if (name === "async") return "true";

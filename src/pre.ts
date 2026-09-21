@@ -165,16 +165,25 @@ export async function run(): Promise<void> {
 	const inputs = getInputs();
 	core.setSecret(inputs.apiToken);
 
-	if (inputs.runAsync) {
-		core.info("Running asynchronously");
-		await runAsync();
-	} else {
-		await runSync(inputs);
+	try {
+		if (inputs.runAsync) {
+			core.info("Running asynchronously");
+			await runAsync();
+		} else {
+			await runSync(inputs);
+		}
+	} catch (error) {
+		core.warning(
+			`Configuring credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 }
 
 if (require.main === module) {
 	run().catch((error) => {
-		core.setFailed(error instanceof Error ? error.message : String(error));
+		// Never fail the customer's workflow because of this action
+		core.warning(
+			`Configuring credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	});
 }

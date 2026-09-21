@@ -18,6 +18,9 @@ export async function run(): Promise<void> {
 
 if (require.main === module) {
 	run().catch((error) => {
-		core.setFailed(error instanceof Error ? error.message : String(error));
+		// Never fail the customer's workflow because of this action
+		core.warning(
+			`Cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	});
 }

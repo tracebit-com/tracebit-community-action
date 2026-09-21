@@ -9,13 +9,35 @@ function printLogs(): void {
 	core.info("Configuring AWS credentials");
 }
 
+/* Returns the parsed credentials, or undefined if the file is missing or not
+ * yet fully written (e.g. empty/partial JSON). */
+function tryReadCredentials(
+	credentialsPath: string | undefined,
+): api.IssuedCredentials | undefined {
+	if (credentialsPath === undefined || !fs.existsSync(credentialsPath)) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(
+			fs.readFileSync(credentialsPath, "utf8"),
+		) as api.IssuedCredentials;
+	} catch {
+		return undefined;
+	}
+}
+
 /* This function will wait until the creds are issued to deploy them or time out */
 async function waitAndDeployCreds(inputs: Inputs): Promise<void> {
 	const retryIntervalMs = 100;
 	const deadline = Date.now() + api.requestTimeout;
 
 	let credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
-	while (credentialsPath === undefined || !fs.existsSync(credentialsPath)) {
+	let credentials: api.IssuedCredentials | undefined;
+	while (credentials === undefined) {
+		credentials = tryReadCredentials(credentialsPath);
+		if (credentials !== undefined) {
+			break;
+		}
 		if (Date.now() >= deadline) {
 			core.warning(
 				`Credentials were not generated within ${api.requestTimeout}ms, path: ${credentialsPath ?? "not set"}. Please look at "Post Configure Credentials" step for the reason.`,
@@ -25,10 +47,6 @@ async function waitAndDeployCreds(inputs: Inputs): Promise<void> {
 		await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
 		credentialsPath = process.env._SECURITY_CREDENTIALS_PATH;
 	}
-
-	const credentials = JSON.parse(
-		fs.readFileSync(credentialsPath, "utf8"),
-	) as api.IssuedCredentials;
 
 	populateGitHubVars(
 		inputs.envPrefix,
@@ -48,7 +66,13 @@ export async function run(): Promise<void> {
 	}
 
 	if (inputs.runAsync) {
-		await waitAndDeployCreds(inputs);
+		try {
+			await waitAndDeployCreds(inputs);
+		} catch (error) {
+			core.warning(
+				`Configuring credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
 	}
 
 	printLogs();
@@ -56,6 +80,9 @@ export async function run(): Promise<void> {
 
 if (require.main === module) {
 	run().catch((error) => {
-		core.setFailed(error instanceof Error ? error.message : String(error));
+		// Never fail the customer's workflow because of this action
+		core.warning(
+			`Configuring credentials failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	});
 }

@@ -283,6 +283,71 @@ describe("action run", () => {
 		vi.useRealTimers();
 	});
 
+	it("keeps polling when credentials file is present but not yet fully written", async () => {
+		vi.useFakeTimers();
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
+			return "";
+		});
+
+		const credentialsPath = path.join(tempHomeDir, "partial.json");
+		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
+		// Simulate the child having created the file but not written it yet
+		writeFileSync(credentialsPath, "");
+
+		const promise = run();
+		await vi.advanceTimersByTimeAsync(250);
+		expect(core.exportVariable).not.toHaveBeenCalled();
+
+		writeFileSync(
+			credentialsPath,
+			JSON.stringify({
+				aws: {
+					awsConfirmationId: "confirm",
+					awsAccessKeyId: "access",
+					awsSecretAccessKey: "secret",
+					awsSessionToken: "token",
+				},
+			}),
+		);
+		await vi.advanceTimersByTimeAsync(250);
+
+		await expect(promise).resolves.toBeUndefined();
+		expect(core.setFailed).not.toHaveBeenCalled();
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__AWS__ACCESS_KEY_ID",
+			"access",
+		);
+		vi.useRealTimers();
+	});
+
+	it("warns instead of failing when credentials file stays malformed", async () => {
+		vi.useFakeTimers();
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
+			return "";
+		});
+
+		const credentialsPath = path.join(tempHomeDir, "broken.json");
+		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
+		writeFileSync(credentialsPath, "{not json");
+
+		const promise = run();
+		await vi.advanceTimersByTimeAsync(6000);
+		await expect(promise).resolves.toBeUndefined();
+		expect(core.setFailed).not.toHaveBeenCalled();
+		expect(core.warning).toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
 	it("does not throw when required inputs are missing", async () => {
 		vi.mocked(core.getInput).mockReturnValue("");
 
