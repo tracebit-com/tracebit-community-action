@@ -22762,7 +22762,7 @@ var import_http_client = __toESM(require_lib());
 // package.json
 var package_default = {
   name: "tracebit-github-action",
-  version: "1.1.1",
+  version: "1.3.0",
   private: true,
   main: "dist/index.js",
   scripts: {
@@ -22779,7 +22779,7 @@ var package_default = {
     "@actions/http-client": "2.2.3"
   },
   devDependencies: {
-    "@types/bun": "1.3.11",
+    "@types/bun": "1.4.2",
     "@types/ini": "4.1.1",
     "@types/node": "20.19.27",
     ini: "6.0.0",
