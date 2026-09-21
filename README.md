@@ -230,10 +230,10 @@ link and stays exactly as it is.
 
 Would rather not host the file? Put our copy in the first address instead, though your README then
 depends on us:
-`https://raw.githubusercontent.com/tracebit-com/tracebit-community-action/v1/assets/badges/tracebit-badge.svg`
+`https://raw.githubusercontent.com/tracebit-com/tracebit-community-action/main/assets/badges/tracebit-badge.svg`
 
 For a narrower badge, use [`tracebit-badge-compact.svg`](assets/badges/tracebit-badge-compact.svg)
-(184x20, no "Community Edition" wording) in place of the full 331x20 one.
+(143x20, no "Community Edition" wording) in place of the full 270x20 one.
 
 Do not set a `width` or `height`: the file is already 20px tall, and resizing it stops it matching
 the badges beside it. One file covers both light and dark GitHub, so please do not recolour,
