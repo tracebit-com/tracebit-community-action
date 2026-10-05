@@ -35,6 +35,25 @@ export function isValidProfileName(profile: string): boolean {
 	return /^[a-zA-Z0-9_-]+$/u.test(profile);
 }
 
+// Files in ~/.ssh that OpenSSH reads as configuration or executes. A canary
+// key must never be written over one of these, whatever the response holds.
+const RESERVED_SSH_NAMES: ReadonlySet<string> = new Set([
+	"config",
+	"authorized_keys",
+	"authorized_keys2",
+	"known_hosts",
+	"known_hosts2",
+	"rc",
+	"environment",
+]);
+
+export function isValidSshKeyName(name: string): boolean {
+	return (
+		/^[a-zA-Z0-9_-]+$/u.test(name) &&
+		!RESERVED_SSH_NAMES.has(name.toLowerCase())
+	);
+}
+
 export function isValidCustomerId(customerId: string): boolean {
 	return /^[a-z0-9-]+$/u.test(customerId);
 }
@@ -47,12 +66,21 @@ export function isValidApiHost(apiHost: string): boolean {
 	);
 }
 
+export const MISSING_API_TOKEN_MESSAGE =
+	"No Tracebit API token was provided, so no canary credentials will be deployed in this run. " +
+	"This is expected for pull requests from forks, where GitHub withholds repository secrets.";
+
+export function hasApiToken(inputs: Inputs): boolean {
+	return inputs.apiToken.trim().length > 0;
+}
+
 export interface Inputs {
 	customerId: string;
 	apiHost: string;
 	apiToken: string;
 	profileName: string;
 	region: string;
+	sshKeyName: string;
 	envPrefix: string;
 	runAsync: boolean;
 }
@@ -60,14 +88,24 @@ export interface Inputs {
 export function getInputs(): Inputs {
 	const customerId = getInputFallback("customer-id", false, "community");
 	const apiHost = getInputFallback("api-host", false, DEFAULT_API_HOST);
-	const apiToken = getInputFallback("api-token", true);
+	// Not required: GitHub withholds secrets from fork pull requests, and
+	// the action must never fail those jobs. Callers
+	// check hasApiToken() and skip deployment with a warning instead.
+	const apiToken = getInputFallback("api-token", false);
 	const profileName = getInputFallback("profile", true);
 	const region = getInputFallback("profile-region", true);
 	const runAsync = getInputFallback("async", false) === "true";
+	const sshKeyName = getInputFallback("ssh-key-name", false, "prod_deploy");
 
 	if (!isValidProfileName(profileName)) {
 		throw new Error(
 			`Invalid profile name "${profileName}": must contain only alphanumeric characters, hyphens, and underscores`,
+		);
+	}
+
+	if (!isValidSshKeyName(sshKeyName)) {
+		throw new Error(
+			`Invalid ssh-key-name "${sshKeyName}": must contain only alphanumeric characters, hyphens, and underscores, and must not be a file OpenSSH reads as configuration (config, authorized_keys, known_hosts, rc, environment)`,
 		);
 	}
 
@@ -93,6 +131,7 @@ export function getInputs(): Inputs {
 		apiToken,
 		profileName,
 		region,
+		sshKeyName,
 		envPrefix: DEFAULT_ENV_PREFIX,
 		runAsync,
 	};

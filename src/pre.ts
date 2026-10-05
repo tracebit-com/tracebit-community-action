@@ -16,7 +16,12 @@ import {
 	writeAwsProfile,
 	writeSshCredentials,
 } from "./deploy";
-import { getInputs, type Inputs } from "./inputs";
+import {
+	getInputs,
+	hasApiToken,
+	type Inputs,
+	MISSING_API_TOKEN_MESSAGE,
+} from "./inputs";
 
 async function runSync(inputs: Inputs): Promise<void> {
 	let config: Config | null = null;
@@ -62,8 +67,14 @@ async function runSync(inputs: Inputs): Promise<void> {
 
 	if (creds.aws) {
 		try {
-			await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
-			confirmationIds.push(creds.aws.awsConfirmationId);
+			const result = await writeAwsProfile(
+				inputs.profileName,
+				inputs.region,
+				creds.aws,
+			);
+			if (result.deployed) {
+				confirmationIds.push(creds.aws.awsConfirmationId);
+			}
 		} catch (error) {
 			core.warning(
 				`Write profile failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -73,8 +84,10 @@ async function runSync(inputs: Inputs): Promise<void> {
 
 	if (creds.ssh) {
 		try {
-			await writeSshCredentials(creds.ssh);
-			confirmationIds.push(creds.ssh.sshConfirmationId);
+			const result = await writeSshCredentials(creds.ssh, inputs.sshKeyName);
+			if (result.deployed) {
+				confirmationIds.push(creds.ssh.sshConfirmationId);
+			}
 		} catch (error) {
 			core.warning(
 				`Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -91,8 +104,10 @@ async function runSync(inputs: Inputs): Promise<void> {
 				}
 				const hostname = hostNames[0];
 
-				await deployHttp(instanceId, hostname, credentials);
-				confirmationIds.push(instance.confirmationId);
+				const result = await deployHttp(instanceId, hostname, credentials);
+				if (result.deployed) {
+					confirmationIds.push(instance.confirmationId);
+				}
 			} catch (error) {
 				core.warning(
 					`Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -163,6 +178,10 @@ async function runAsync(): Promise<void> {
 
 export async function run(): Promise<void> {
 	const inputs = getInputs();
+	if (!hasApiToken(inputs)) {
+		core.warning(MISSING_API_TOKEN_MESSAGE);
+		return;
+	}
 	core.setSecret(inputs.apiToken);
 
 	try {

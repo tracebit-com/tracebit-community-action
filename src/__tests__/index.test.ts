@@ -16,29 +16,12 @@ vi.mock("@actions/core", () => ({
 	setFailed: vi.fn(),
 }));
 
-vi.mock("@actions/exec", () => ({
-	exec: vi.fn(),
-}));
-
 const postMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@actions/http-client", () => ({
 	HttpClient: class {
 		post = postMock;
 	},
-}));
-
-const githubContext = vi.hoisted(() => ({
-	ref: "",
-	repo: { owner: "", repo: "" },
-	runId: undefined as number | undefined,
-	sha: "",
-	workflow: "",
-	job: "",
-}));
-
-vi.mock("@actions/github", () => ({
-	context: githubContext,
 }));
 
 vi.mock("node:os", async () => {
@@ -50,7 +33,6 @@ vi.mock("node:os", async () => {
 });
 
 import * as core from "@actions/core";
-import * as exec from "@actions/exec";
 import { run } from "../index";
 import {
 	isValidApiHost,
@@ -80,14 +62,17 @@ describe("action run", () => {
 			),
 		};
 		vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
-		vi.mocked(exec.exec).mockResolvedValue(0);
 		postMock.mockReset();
-		githubContext.ref = "";
-		githubContext.repo = { owner: "", repo: "" };
-		githubContext.runId = undefined;
-		githubContext.sha = "";
-		githubContext.workflow = "";
-		githubContext.job = "";
+		for (const name of [
+			"GITHUB_REF",
+			"GITHUB_REPOSITORY",
+			"GITHUB_RUN_ID",
+			"GITHUB_SHA",
+			"GITHUB_WORKFLOW",
+			"GITHUB_JOB",
+		]) {
+			delete process.env[name];
+		}
 	});
 
 	afterEach(async () => {
@@ -118,6 +103,65 @@ describe("action run", () => {
 		vi.useRealTimers();
 	});
 
+	it("exports and masks HTTP tokens from the credentials file in async mode", async () => {
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
+			return "";
+		});
+		const credentialsPath = path.join(tempHomeDir, "credentials.json");
+		writeFileSync(
+			credentialsPath,
+			JSON.stringify({
+				http: {
+					npm: {
+						confirmationId: "44444444-4444-4444-8444-444444444444",
+						browserDeploymentId: "55555555-5555-4555-8555-555555555555",
+						hostNames: ["npm.example.com"],
+						expiresAt: null,
+						credentials: {
+							strategy: "any",
+							strategies: [
+								{ strategy: "npm-token", token: "npm-auth-token" },
+								{ strategy: "browser" },
+							],
+						},
+					},
+					pypi: {
+						confirmationId: "66666666-6666-4666-8666-666666666666",
+						browserDeploymentId: "77777777-7777-4777-8777-777777777777",
+						hostNames: ["pypi.example.com"],
+						expiresAt: null,
+						credentials: {
+							strategy: "python-index",
+							token: "pypi-abc",
+							indexName: "",
+						},
+					},
+				},
+			}),
+		);
+		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
+
+		await run();
+
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__NPM__TOKEN",
+			"npm-auth-token",
+		);
+		expect(core.exportVariable).toHaveBeenCalledWith(
+			"__PYPI__TOKEN",
+			"pypi-abc",
+		);
+		expect(core.setOutput).toHaveBeenCalledWith("npm-token", "npm-auth-token");
+		expect(core.setOutput).toHaveBeenCalledWith("pypi-token", "pypi-abc");
+		expect(core.setSecret).toHaveBeenCalledWith("npm-auth-token");
+		expect(core.setSecret).toHaveBeenCalledWith("pypi-abc");
+	});
+
 	it("exports credentials when credentials file exists", async () => {
 		vi.mocked(core.getInput).mockImplementation((name: string) => {
 			if (name === "customer-id") return "customerx";
@@ -133,16 +177,22 @@ describe("action run", () => {
 			credentialsPath,
 			JSON.stringify({
 				aws: {
-					awsConfirmationId: "confirm",
-					awsAccessKeyId: "access",
-					awsSecretAccessKey: "secret",
-					awsSessionToken: "token",
+					awsConfirmationId: "22222222-2222-4222-8222-222222222222",
+					awsAccessKeyId: "ASIAIOSFODNN7EXAMPLE",
+					awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+					awsSessionToken:
+						"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+					awsExpiration: "2026-05-10T14:45:14Z",
 				},
 				ssh: {
-					sshConfirmationId: "ssh-confirm",
+					sshConfirmationId: "33333333-3333-4333-8333-333333333333",
 					sshIp: "34.246.54.210",
-					sshPrivateKey: Buffer.from("fake-private").toString("base64"),
-					sshPublicKey: Buffer.from("fake-public").toString("base64"),
+					sshPrivateKey: Buffer.from(
+						"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACBJS4x1c6+gJkj8rF4zeylgs7HpQntB4sa8kc52xcjuyg==\n-----END OPENSSH PRIVATE KEY-----\n",
+					).toString("base64"),
+					sshPublicKey: Buffer.from(
+						"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIElLjHVzr6AmSPysXjN7KWCzselCe0HixryRznbFyO7K ci@tracebit\n",
+					).toString("base64"),
 					sshExpiration: "2026-05-10T14:45:14.7390578Z",
 				},
 			}),
@@ -154,15 +204,15 @@ describe("action run", () => {
 		// exportVariable: plain credentials
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__ACCESS_KEY_ID",
-			"access",
+			"ASIAIOSFODNN7EXAMPLE",
 		);
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__SECRET_ACCESS_KEY",
-			"secret",
+			"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 		);
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__SESSION_TOKEN",
-			"token",
+			"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
 		);
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__REGION",
@@ -180,24 +230,30 @@ describe("action run", () => {
 		// exportVariable: JSON secret format
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__ACCESS_KEY_ID_SECRET",
-			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+			'"ACCESS_KEY_ID_SECRET":{"value":"ASIAIOSFODNN7EXAMPLE","isSecret":true}',
 		);
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__SECRET_ACCESS_KEY_SECRET",
-			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","isSecret":true}',
 		);
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__SESSION_TOKEN_SECRET",
-			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+			'"SESSION_TOKEN_SECRET":{"value":"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=","isSecret":true}',
 		);
 
 		// setOutput: plain credentials
-		expect(core.setOutput).toHaveBeenCalledWith("aws-access-key-id", "access");
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"aws-access-key-id",
+			"ASIAIOSFODNN7EXAMPLE",
+		);
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"aws-secret-access-key",
-			"secret",
+			"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 		);
-		expect(core.setOutput).toHaveBeenCalledWith("aws-session-token", "token");
+		expect(core.setOutput).toHaveBeenCalledWith(
+			"aws-session-token",
+			"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+		);
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"profile-name",
 			"tracebit-profile",
@@ -206,24 +262,30 @@ describe("action run", () => {
 		// setOutput: JSON secret format
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"aws-access-key-id-secret",
-			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+			'"ACCESS_KEY_ID_SECRET":{"value":"ASIAIOSFODNN7EXAMPLE","isSecret":true}',
 		);
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"aws-secret-access-key-secret",
-			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","isSecret":true}',
 		);
 		expect(core.setOutput).toHaveBeenCalledWith(
 			"aws-session-token-secret",
-			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+			'"SESSION_TOKEN_SECRET":{"value":"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=","isSecret":true}',
 		);
 
 		// saveState: plain credentials
-		expect(core.saveState).toHaveBeenCalledWith("aws-access-key-id", "access");
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-access-key-id",
+			"ASIAIOSFODNN7EXAMPLE",
+		);
 		expect(core.saveState).toHaveBeenCalledWith(
 			"aws-secret-access-key",
-			"secret",
+			"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 		);
-		expect(core.saveState).toHaveBeenCalledWith("aws-session-token", "token");
+		expect(core.saveState).toHaveBeenCalledWith(
+			"aws-session-token",
+			"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+		);
 		expect(core.saveState).toHaveBeenCalledWith(
 			"profile-name",
 			"tracebit-profile",
@@ -232,31 +294,35 @@ describe("action run", () => {
 		// saveState: JSON secret format
 		expect(core.saveState).toHaveBeenCalledWith(
 			"aws-access-key-id-secret",
-			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+			'"ACCESS_KEY_ID_SECRET":{"value":"ASIAIOSFODNN7EXAMPLE","isSecret":true}',
 		);
 		expect(core.saveState).toHaveBeenCalledWith(
 			"aws-secret-access-key-secret",
-			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","isSecret":true}',
 		);
 		expect(core.saveState).toHaveBeenCalledWith(
 			"aws-session-token-secret",
-			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+			'"SESSION_TOKEN_SECRET":{"value":"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=","isSecret":true}',
 		);
 
 		// setSecret: plain credentials
-		expect(core.setSecret).toHaveBeenCalledWith("access");
-		expect(core.setSecret).toHaveBeenCalledWith("secret");
-		expect(core.setSecret).toHaveBeenCalledWith("token");
+		expect(core.setSecret).toHaveBeenCalledWith("ASIAIOSFODNN7EXAMPLE");
+		expect(core.setSecret).toHaveBeenCalledWith(
+			"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		);
+		expect(core.setSecret).toHaveBeenCalledWith(
+			"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+		);
 
 		// setSecret: JSON secret format
 		expect(core.setSecret).toHaveBeenCalledWith(
-			'"ACCESS_KEY_ID_SECRET":{"value":"access","isSecret":true}',
+			'"ACCESS_KEY_ID_SECRET":{"value":"ASIAIOSFODNN7EXAMPLE","isSecret":true}',
 		);
 		expect(core.setSecret).toHaveBeenCalledWith(
-			'"SECRET_ACCESS_KEY_SECRET":{"value":"secret","isSecret":true}',
+			'"SECRET_ACCESS_KEY_SECRET":{"value":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","isSecret":true}',
 		);
 		expect(core.setSecret).toHaveBeenCalledWith(
-			'"SESSION_TOKEN_SECRET":{"value":"token","isSecret":true}',
+			'"SESSION_TOKEN_SECRET":{"value":"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=","isSecret":true}',
 		);
 	});
 
@@ -307,10 +373,12 @@ describe("action run", () => {
 			credentialsPath,
 			JSON.stringify({
 				aws: {
-					awsConfirmationId: "confirm",
-					awsAccessKeyId: "access",
-					awsSecretAccessKey: "secret",
-					awsSessionToken: "token",
+					awsConfirmationId: "22222222-2222-4222-8222-222222222222",
+					awsAccessKeyId: "ASIAIOSFODNN7EXAMPLE",
+					awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+					awsSessionToken:
+						"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+					awsExpiration: "2026-05-10T14:45:14Z",
 				},
 			}),
 		);
@@ -320,7 +388,7 @@ describe("action run", () => {
 		expect(core.setFailed).not.toHaveBeenCalled();
 		expect(core.exportVariable).toHaveBeenCalledWith(
 			"__AWS__ACCESS_KEY_ID",
-			"access",
+			"ASIAIOSFODNN7EXAMPLE",
 		);
 		vi.useRealTimers();
 	});
@@ -348,12 +416,76 @@ describe("action run", () => {
 		vi.useRealTimers();
 	});
 
-	it("does not throw when required inputs are missing", async () => {
+	it("stops immediately, without waiting out the timeout, when the hand-off file has nothing usable", async () => {
+		vi.useFakeTimers();
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "api-token") return "token";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
+			return "";
+		});
+		const credentialsPath = path.join(tempHomeDir, "bad.json");
+		process.env._SECURITY_CREDENTIALS_PATH = credentialsPath;
+		writeFileSync(
+			credentialsPath,
+			JSON.stringify({
+				aws: {
+					awsConfirmationId: "22222222-2222-4222-8222-222222222222",
+					awsAccessKeyId: "ASIAIOSFODNN7EXAMPLE",
+					awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+					awsSessionToken:
+						"FwoGZXIvYXdzEBYaDEXAMPLE\n[default]\ncredential_process = x",
+					awsExpiration: "2026-05-10T14:45:14Z",
+				},
+			}),
+		);
+
+		const promise = run();
+		await vi.advanceTimersByTimeAsync(0);
+		await expect(promise).resolves.toBeUndefined();
+
+		expect(core.warning).toHaveBeenCalledWith(
+			expect.stringMatching(/Skipping AWS credentials: .*awsSessionToken/),
+		);
+		expect(core.warning).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"issued no credentials this action version can use",
+			),
+		);
+		expect(core.exportVariable).not.toHaveBeenCalled();
+		expect(core.setSecret).not.toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
+	it("fails when profile or region inputs are missing", async () => {
 		vi.mocked(core.getInput).mockReturnValue("");
 
 		await expect(run()).resolves.toBeUndefined();
 		expect(core.setFailed).toHaveBeenCalled();
 		expect(postMock).not.toHaveBeenCalled();
+	});
+
+	it("warns instead of failing when the API token is missing (fork PRs)", async () => {
+		vi.mocked(core.getInput).mockImplementation((name: string) => {
+			if (name === "customer-id") return "customerx";
+			if (name === "profile") return "tracebit-profile";
+			if (name === "profile-region") return "us-east-1";
+			if (name === "async") return "true";
+			return "";
+		});
+		process.env._SECURITY_CREDENTIALS_PATH = path.join(
+			tempHomeDir,
+			"never-written.json",
+		);
+
+		await expect(run()).resolves.toBeUndefined();
+		expect(core.setFailed).not.toHaveBeenCalled();
+		expect(core.warning).toHaveBeenCalledWith(
+			expect.stringContaining("No Tracebit API token"),
+		);
+		expect(core.exportVariable).not.toHaveBeenCalled();
 	});
 
 	it("shows warning when region is invalid", async () => {

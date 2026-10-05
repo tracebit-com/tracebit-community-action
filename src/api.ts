@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
 import * as core from "@actions/core";
-import { context } from "@actions/github";
 import { HttpClient } from "@actions/http-client";
 import pkg from "../package.json";
 import type { TolerantDeploymentStrategy } from "./external-types/deployment-strategy";
+import {
+	hasNoCredentials,
+	parseConfig,
+	parseIssuedCredentials,
+} from "./validate";
 
 export const requestTimeout = 5_000;
 
@@ -11,14 +15,18 @@ const httpClient = new HttpClient("tracebit-github-action", [], {
 	socketTimeout: requestTimeout, // Make sure the request doesn't take too long
 });
 
+// Read straight from the runner environment rather than via @actions/github:
+// that package drags the whole Octokit client (and a second undici) into the
+// bundle just to expose these six values.
 function getGithubContext() {
+	const env = (name: string): string => process.env[name] ?? "";
 	return {
-		ref: context.ref ?? "",
-		repository: `${context.repo.owner}/${context.repo.repo}`,
-		runId: context.runId?.toString() ?? "",
-		sha: context.sha ?? "",
-		workflow: context.workflow ?? "",
-		job: context.job ?? "",
+		ref: env("GITHUB_REF"),
+		repository: env("GITHUB_REPOSITORY"),
+		runId: env("GITHUB_RUN_ID"),
+		sha: env("GITHUB_SHA"),
+		workflow: env("GITHUB_WORKFLOW"),
+		job: env("GITHUB_JOB"),
 	};
 }
 
@@ -45,6 +53,7 @@ export interface IssuedAwsCredentials {
 	awsAccessKeyId: string;
 	awsSecretAccessKey: string;
 	awsSessionToken: string;
+	awsExpiration: string;
 }
 
 export interface IssuedSshCredentials {
@@ -135,14 +144,12 @@ export async function issueCredentials(
 		);
 	}
 
-	// TODO: add error catching to JSON parsing
-	const json = JSON.parse(responseText) as IssuedCredentials;
-
-	if (
-		!json.aws &&
-		!json.ssh &&
-		(!json.http || Object.keys(json.http).length === 0)
-	) {
+	// Validate the whole response before anything is written anywhere. A
+	// compromised backend must not be able to inject config directives.
+	// Invalid or unknown parts are skipped with a warning so an API change
+	// never stops pinned action versions from deploying the rest.
+	const json = parseIssuedCredentials(responseText, core.warning);
+	if (hasNoCredentials(json)) {
 		throw new Error(
 			"No credentials were issued: neither AWS, SSH nor HTTP credentials were returned",
 		);
@@ -197,5 +204,5 @@ export async function getConfig(
 		throw new Error(`Failed to get config (${statusCode}): ${responseText}`);
 	}
 
-	return JSON.parse(responseText) as Config;
+	return parseConfig(responseText, core.warning);
 }

@@ -158,15 +158,33 @@ To configure the credentials once for the whole organization:
 1. Go to your organization's **Settings → Secrets and variables → Actions**.
 2. Add `SECURITY_API_TOKEN` as an **organization secret**, scoped to the repositories you want to protect.
 
+### Pull requests from forks
+
+GitHub does not pass repository secrets to workflows triggered by pull requests from forks. In those runs `api-token` is empty, the action logs a warning and plants no canaries, and your workflow continues normally. Fork contributions are therefore not covered, which is the intended behaviour: never work around it by committing a Tracebit token or by switching to `pull_request_target`, which would run untrusted code with your secrets.
+
 ## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `customer-id` | No | `community` | Your Tracebit customer ID |
-| `api-token` | Yes | - | Your Tracebit API token |
+| `api-token` | Yes | - | Your Tracebit API token. If it is empty, as it is for pull requests from forks where GitHub withholds secrets, the action logs a warning and deploys nothing. The job is not failed. |
 | `profile` | Yes | - | AWS profile name to write to `~/.aws/credentials` |
 | `profile-region` | Yes | - | AWS region to configure for the profile |
+| `ssh-key-name` | No | `prod_deploy` | File name for the SSH canary key in `~/.ssh`. An existing key of that name is overwritten. |
 | `async` | No | `false` | Run the credential issuance in the background so subsequent steps are not delayed. Recommended. Place the action as the second step, directly after `actions/checkout` - see [Sync vs. async mode](#sync-vs-async-mode). |
+
+## Environment variables
+
+Canary values are exported with a `__NAME__` prefix so they never shadow real credentials already in the job environment:
+
+| Variable | Contents |
+|----------|----------|
+| `__AWS__ACCESS_KEY_ID`, `__AWS__SECRET_ACCESS_KEY`, `__AWS__SESSION_TOKEN` | AWS canary credentials |
+| `__AWS__REGION`, `__AWS__DEFAULT_REGION`, `__AWS__PROFILE` | Region and profile name |
+| `__NPM__TOKEN` | npm canary registry token |
+| `__PYPI__TOKEN` | PyPI canary index token |
+
+Each also has a `*_SECRET` variant carrying the value in the runner's internal secret JSON format.
 
 ## Outputs
 
@@ -179,16 +197,16 @@ To configure the credentials once for the whole organization:
 
 ## Dependencies
 
-This action is intentionally minimal. The runtime `dependencies` (bundled into `dist/`) are all official GitHub Actions toolkit packages maintained by GitHub:
+This action is intentionally minimal. The only direct runtime `dependencies` are official GitHub Actions toolkit packages maintained by GitHub:
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `@actions/core` | 1.11.1 | Reads action inputs, sets outputs, masks secrets, and controls workflow annotations |
-| `@actions/exec` | 1.1.1 | Runs subprocesses (used to write the AWS credentials file) |
-| `@actions/github` | 6.0.1 | GitHub context (repo, workflow, run ID) passed to the Tracebit API |
-| `@actions/http-client` | 2.2.3 | Makes HTTP requests to the Tracebit API |
+| `@actions/core` | 3.0.1 | Reads action inputs, sets outputs, masks secrets, and controls workflow annotations |
+| `@actions/http-client` | 4.0.1 | Makes HTTP requests to the Tracebit API |
 
-No third-party runtime dependencies. The `devDependencies` (`typescript`, `vitest`, `@types/*`) are only used locally during development and are never present in the runner environment.
+GitHub context (repository, ref, run ID, SHA, workflow, job) is read directly from the `GITHUB_*` environment variables, so `@actions/github` and the Octokit client are not bundled.
+
+Everything the action runs is bundled into `dist/` with `bun run build`, including the toolkit's own transitive dependencies (`undici`, `tunnel`, `@actions/exec`, `@actions/io`). Nothing is installed at run time. CI rebuilds every bundle and fails if any differs from what is committed. The `devDependencies` (`typescript`, `vitest`, `biome`, `@types/*`) are used only during development and are never present in the runner environment.
 
 ## Contributing
 

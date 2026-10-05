@@ -8,10 +8,14 @@ import {
 	issueCredentials,
 } from "./api";
 import { deployHttp, writeAwsProfile, writeSshCredentials } from "./deploy";
-import { getInputs } from "./inputs";
+import { getInputs, hasApiToken, MISSING_API_TOKEN_MESSAGE } from "./inputs";
 
 export async function run(): Promise<void> {
 	const inputs = getInputs();
+	if (!hasApiToken(inputs)) {
+		core.warning(MISSING_API_TOKEN_MESSAGE);
+		return;
+	}
 	core.setSecret(inputs.apiToken);
 
 	const credentialsPath = process.env.CREDENTIALS_PATH;
@@ -51,18 +55,18 @@ export async function run(): Promise<void> {
 		return;
 	}
 
-	// Write to a temp file and rename so the main step never observes a
-	// partially written file (rename is atomic on the same filesystem).
-	const tmpPath = `${credentialsPath}.tmp`;
-	fs.writeFileSync(tmpPath, JSON.stringify(creds));
-	fs.renameSync(tmpPath, credentialsPath);
-
 	const confirmationIds: string[] = [];
 
 	if (creds.aws) {
 		try {
-			await writeAwsProfile(inputs.profileName, inputs.region, creds.aws);
-			confirmationIds.push(creds.aws.awsConfirmationId);
+			const result = await writeAwsProfile(
+				inputs.profileName,
+				inputs.region,
+				creds.aws,
+			);
+			if (result.deployed) {
+				confirmationIds.push(creds.aws.awsConfirmationId);
+			}
 		} catch (error) {
 			const message = `Write profile failed: ${error instanceof Error ? error.message : String(error)}`;
 			fs.appendFileSync(
@@ -75,8 +79,10 @@ export async function run(): Promise<void> {
 
 	if (creds.ssh) {
 		try {
-			await writeSshCredentials(creds.ssh);
-			confirmationIds.push(creds.ssh.sshConfirmationId);
+			const result = await writeSshCredentials(creds.ssh, inputs.sshKeyName);
+			if (result.deployed) {
+				confirmationIds.push(creds.ssh.sshConfirmationId);
+			}
 		} catch (error) {
 			const message = `Write SSH credentials failed: ${error instanceof Error ? error.message : String(error)}`;
 			fs.appendFileSync(
@@ -96,8 +102,10 @@ export async function run(): Promise<void> {
 				}
 				const hostname = hostNames[0];
 
-				await deployHttp(instanceId, hostname, credentials);
-				confirmationIds.push(instance.confirmationId);
+				const result = await deployHttp(instanceId, hostname, credentials);
+				if (result.deployed) {
+					confirmationIds.push(instance.confirmationId);
+				}
 			} catch (error) {
 				const message = `Deploying HTTP credentials for instance ${instanceId} failed: ${error instanceof Error ? error.message : String(error)}`;
 				fs.appendFileSync(
@@ -129,6 +137,14 @@ export async function run(): Promise<void> {
 			core.warning(message);
 		}
 	}
+
+	// Hand off to the main step only now, after every file write and
+	// confirmation, so "credentials file exists" means "deployment finished".
+	// Write to a temp file and rename so main never observes a partial file
+	// (rename is atomic on the same filesystem).
+	const tmpPath = `${credentialsPath}.tmp`;
+	fs.writeFileSync(tmpPath, JSON.stringify(creds));
+	fs.renameSync(tmpPath, credentialsPath);
 }
 
 if (require.main === module) {

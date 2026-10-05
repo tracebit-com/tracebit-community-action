@@ -77,7 +77,7 @@ jobs:
 
       - name: Verify bundle is up to date
         run: |
-          if ! git diff --exit-code -- dist/index.js; then
+          if ! git diff --exit-code -- dist/; then
             echo "Bundle is out of date. Run 'bun run build' and commit result."
             BUN_VERSION=$(bun --version)
             echo "You might need to 'bun upgrade' your local bun version to $BUN_VERSION before running 'bun run build'."

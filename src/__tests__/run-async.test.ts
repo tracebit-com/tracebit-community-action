@@ -16,29 +16,14 @@ vi.mock("@actions/core", () => ({
 	setFailed: vi.fn(),
 }));
 
-vi.mock("@actions/exec", () => ({
-	exec: vi.fn(),
-}));
-
 const postMock = vi.hoisted(() => vi.fn());
+const getMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@actions/http-client", () => ({
 	HttpClient: class {
 		post = postMock;
+		get = getMock;
 	},
-}));
-
-const githubContext = vi.hoisted(() => ({
-	ref: "",
-	repo: { owner: "", repo: "" },
-	runId: undefined as number | undefined,
-	sha: "",
-	workflow: "",
-	job: "",
-}));
-
-vi.mock("@actions/github", () => ({
-	context: githubContext,
 }));
 
 vi.mock("node:os", async () => {
@@ -49,7 +34,7 @@ vi.mock("node:os", async () => {
 	};
 });
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as core from "@actions/core";
 import { run } from "../run-async";
 
@@ -67,24 +52,30 @@ const defaultInputs = (name: string): string => {
 };
 
 const awsCreds = {
-	awsConfirmationId: "aws-confirm-id",
-	awsAccessKeyId: "access-key",
-	awsSecretAccessKey: "secret-key",
-	awsSessionToken: "session-token",
+	awsConfirmationId: "22222222-2222-4222-8222-222222222222",
+	awsAccessKeyId: "ASIAIOSFODNN7EXAMPLE",
+	awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+	awsSessionToken:
+		"FwoGZXIvYXdzEBYaDEXAMPLESESSIONTOKEN0123456789abcdefABCDEF+/=",
+	awsExpiration: "2026-05-10T14:45:14Z",
 };
 
 const sshCreds = {
-	sshConfirmationId: "ssh-confirm-id",
+	sshConfirmationId: "33333333-3333-4333-8333-333333333333",
 	sshIp: "34.246.54.210",
-	sshPrivateKey: Buffer.from("fake-ssh-private-key").toString("base64"),
-	sshPublicKey: Buffer.from("fake-ssh-public-key").toString("base64"),
+	sshPrivateKey: Buffer.from(
+		"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACBJS4x1c6+gJkj8rF4zeylgs7HpQntB4sa8kc52xcjuyg==\n-----END OPENSSH PRIVATE KEY-----\n",
+	).toString("base64"),
+	sshPublicKey: Buffer.from(
+		"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIElLjHVzr6AmSPysXjN7KWCzselCe0HixryRznbFyO7K ci@tracebit\n",
+	).toString("base64"),
 	sshExpiration: "2026-05-10T14:45:14.7390578Z",
 };
 
 const _httpCreds = {
 	npm: {
-		confirmationId: "npm-confirm-id",
-		browserDeploymentId: "npm-browser-deploy-id",
+		confirmationId: "44444444-4444-4444-8444-444444444444",
+		browserDeploymentId: "55555555-5555-4555-8555-555555555555",
 		hostNames: ["npm.example.com"],
 		expiresAt: null,
 		credentials: { strategy: "npm-token", token: "npm-auth-token" },
@@ -141,6 +132,11 @@ describe("run-async", () => {
 		vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
 		vi.mocked(core.getInput).mockImplementation(defaultInputs);
 		postMock.mockReset();
+		getMock.mockReset();
+		getMock.mockResolvedValue({
+			message: { statusCode: 200 },
+			readBody: async () => "{}",
+		});
 	});
 
 	afterEach(async () => {
@@ -149,6 +145,21 @@ describe("run-async", () => {
 			await rm(tempHomeDir, { recursive: true, force: true });
 			tempHomeDir = "";
 		}
+	});
+
+	it("warns and writes nothing when the API token is missing", async () => {
+		vi.mocked(core.getInput).mockImplementation((name: string) =>
+			name === "api-token" ? "" : defaultInputs(name),
+		);
+
+		await run();
+
+		expect(postMock).not.toHaveBeenCalled();
+		expect(existsSync(credentialsPath)).toBe(false);
+		expect(existsSync(errorPath)).toBe(false);
+		expect(core.warning).toHaveBeenCalledWith(
+			expect.stringContaining("No Tracebit API token"),
+		);
 	});
 
 	it("does nothing when CREDENTIALS_PATH is not set", async () => {
@@ -169,6 +180,51 @@ describe("run-async", () => {
 
 		expect(existsSync(credentialsPath)).toBe(true);
 		expect(existsSync(errorPath)).toBe(false);
+	});
+
+	it("writes the hand-off file only after deploys and confirmations", async () => {
+		// Observe the filesystem at the moment confirm-credentials is called:
+		// the canary files must exist and the hand-off file must not yet.
+		let seenAtConfirm: { aws: boolean; handoff: boolean } | undefined;
+		postMock
+			.mockResolvedValueOnce(issuedResponse({ aws: awsCreds }))
+			.mockImplementationOnce(async () => {
+				seenAtConfirm = {
+					aws: existsSync(path.join(tempHomeDir, ".aws", "credentials")),
+					handoff: existsSync(credentialsPath),
+				};
+				return confirmOk;
+			});
+
+		await run();
+
+		expect(seenAtConfirm).toEqual({ aws: true, handoff: false });
+		expect(existsSync(credentialsPath)).toBe(true);
+	});
+
+	it("still writes the hand-off file when a deploy fails", async () => {
+		writeFileSync(path.join(tempHomeDir, ".ssh"), "not a directory");
+		postMock
+			.mockResolvedValueOnce(issuedResponse({ aws: awsCreds, ssh: sshCreds }))
+			.mockResolvedValue(confirmOk);
+
+		await run();
+
+		expect(existsSync(credentialsPath)).toBe(true);
+		expect(readFileSync(errorPath, "utf8")).toMatch(
+			/Write SSH credentials failed/,
+		);
+	});
+
+	it("does not export or mask anything itself; the main step does that", async () => {
+		postMock
+			.mockResolvedValueOnce(issuedResponse({ http: _httpCreds }))
+			.mockResolvedValue(confirmOk);
+
+		await run();
+
+		expect(core.exportVariable).not.toHaveBeenCalled();
+		expect(core.setOutput).not.toHaveBeenCalled();
 	});
 
 	it("writes credentials atomically and leaves no temp file behind", async () => {
@@ -221,15 +277,15 @@ describe("run-async", () => {
 		// both should be persisted in errorPath
 		const httpTwoBroken = {
 			npm: {
-				confirmationId: "npm-confirm-id-1",
-				browserDeploymentId: "npm-browser-deploy-id-1",
+				confirmationId: "88888888-8888-4888-8888-888888888881",
+				browserDeploymentId: "88888888-8888-4888-8888-888888888891",
 				hostNames: [] as string[],
 				expiresAt: null,
 				credentials: { strategy: "npm-token", token: "t1" },
 			},
 			pypi: {
-				confirmationId: "npm-confirm-id-2",
-				browserDeploymentId: "npm-browser-deploy-id-2",
+				confirmationId: "88888888-8888-4888-8888-888888888882",
+				browserDeploymentId: "88888888-8888-4888-8888-888888888892",
 				hostNames: [] as string[],
 				expiresAt: null,
 				credentials: { strategy: "npm-token", token: "t2" },
@@ -257,8 +313,8 @@ describe("run-async", () => {
 	describe("confirmation of planted credentials", () => {
 		const httpCreds = {
 			npm: {
-				confirmationId: "npm-confirm-id",
-				browserDeploymentId: "npm-browser-deploy-id",
+				confirmationId: "44444444-4444-4444-8444-444444444444",
+				browserDeploymentId: "55555555-5555-4555-8555-555555555555",
 				hostNames: ["npm.example.com"],
 				expiresAt: null,
 				credentials: { strategy: "npm-token", token: "npm-auth-token" },
@@ -275,14 +331,14 @@ describe("run-async", () => {
 			await run();
 
 			expect(confirmedIds().sort()).toEqual([
-				"aws-confirm-id",
-				"npm-confirm-id",
-				"ssh-confirm-id",
+				"22222222-2222-4222-8222-222222222222",
+				"33333333-3333-4333-8333-333333333333",
+				"44444444-4444-4444-8444-444444444444",
 			]);
 			expect(existsSync(errorPath)).toBe(false);
 		});
 
-		it("does not confirm SSH credentials when the SSH deploy fails", async () => {
+		it("skips malformed SSH credentials and still deploys and confirms AWS", async () => {
 			postMock
 				.mockResolvedValueOnce(
 					issuedResponse({
@@ -294,9 +350,51 @@ describe("run-async", () => {
 
 			await run();
 
-			expect(confirmedIds()).toEqual(["aws-confirm-id"]);
+			expect(confirmedIds()).toEqual(["22222222-2222-4222-8222-222222222222"]);
+			expect(existsSync(credentialsPath)).toBe(true);
+			expect(JSON.parse(readFileSync(credentialsPath, "utf8"))).toEqual({
+				aws: awsCreds,
+			});
+			expect(existsSync(errorPath)).toBe(false);
+			expect(core.warning).toHaveBeenCalledWith(
+				expect.stringMatching(/Skipping SSH credentials: .*sshIp/),
+			);
+		});
+
+		it("does not confirm SSH credentials when the SSH deploy fails", async () => {
+			// Occupy ~/.ssh with a regular file so mkdir fails
+			writeFileSync(path.join(tempHomeDir, ".ssh"), "not a directory");
+
+			postMock
+				.mockResolvedValueOnce(issuedResponse({ aws: awsCreds, ssh: sshCreds }))
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds()).toEqual(["22222222-2222-4222-8222-222222222222"]);
 			const contents = readFileSync(errorPath, "utf8");
 			expect(contents).toMatch(/Write SSH credentials failed/);
+		});
+
+		it("overwrites an existing SSH key and confirms it", async () => {
+			const sshDir = path.join(tempHomeDir, ".ssh");
+			mkdirSync(sshDir, { recursive: true });
+			writeFileSync(path.join(sshDir, "prod_deploy"), "stale");
+
+			postMock
+				.mockResolvedValueOnce(issuedResponse({ aws: awsCreds, ssh: sshCreds }))
+				.mockResolvedValue(confirmOk);
+
+			await run();
+
+			expect(confirmedIds().sort()).toEqual([
+				"22222222-2222-4222-8222-222222222222",
+				"33333333-3333-4333-8333-333333333333",
+			]);
+			expect(readFileSync(path.join(sshDir, "prod_deploy"), "utf8")).not.toBe(
+				"stale",
+			);
+			expect(existsSync(errorPath)).toBe(false);
 		});
 
 		it("does not confirm AWS credentials when writing the profile fails", async () => {
@@ -309,7 +407,7 @@ describe("run-async", () => {
 
 			await run();
 
-			expect(confirmedIds()).toEqual(["ssh-confirm-id"]);
+			expect(confirmedIds()).toEqual(["33333333-3333-4333-8333-333333333333"]);
 			const contents = readFileSync(errorPath, "utf8");
 			expect(contents).toMatch(/Write profile failed/);
 		});
@@ -318,8 +416,8 @@ describe("run-async", () => {
 			const httpMixed = {
 				...httpCreds,
 				pypi: {
-					confirmationId: "pypi-confirm-id",
-					browserDeploymentId: "pypi-browser-deploy-id",
+					confirmationId: "66666666-6666-4666-8666-666666666666",
+					browserDeploymentId: "77777777-7777-4777-8777-777777777777",
 					hostNames: [] as string[],
 					expiresAt: null,
 					credentials: { strategy: "npm-token", token: "t2" },
@@ -332,7 +430,7 @@ describe("run-async", () => {
 
 			await run();
 
-			expect(confirmedIds()).toEqual(["npm-confirm-id"]);
+			expect(confirmedIds()).toEqual(["44444444-4444-4444-8444-444444444444"]);
 			const contents = readFileSync(errorPath, "utf8");
 			expect(contents).toMatch(
 				/Deploying HTTP credentials for instance pypi failed/,

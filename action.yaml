@@ -31,6 +31,11 @@ inputs:
     description: "Run the action in the background without making the other steps wait for it to finish."
     required: false
 
+  ssh-key-name:
+    description: "File name for the SSH canary key written to ~/.ssh (a .pub file is written alongside). An existing key of that name is overwritten."
+    required: false
+    default: "prod_deploy"
+
 outputs:
   aws-access-key-id:
     description: "The AWS access key ID"

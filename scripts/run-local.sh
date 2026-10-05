@@ -4,11 +4,17 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
+# .env provides defaults; variables already set on the command line win,
+# e.g. `INPUT_ASYNC=true bun run run:local`.
 if [ -f "$repo_root/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$repo_root/.env"
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    if [ -z "${!key:-}" ]; then
+      export "$key=$value"
+    fi
+  done < "$repo_root/.env"
 fi
 
 : "${INPUT_CUSTOMER_ID:?Set INPUT_CUSTOMER_ID}"
@@ -115,14 +121,6 @@ source_github_state
 
 echo -e "\n--------------------------------\n"
 
-if [ "${INPUT_ASYNC}" = "true" ]; then
-  echo -e "Running post step...\n"
-  node dist/post.js
-  source_github_env
-fi
-
-echo -e "\n--------------------------------\n"
-
 echo -e "Outputs file: $GITHUB_OUTPUT\n"
 cat "$GITHUB_OUTPUT"
 
@@ -138,42 +136,55 @@ cat "$GITHUB_STATE"
 
 echo -e "\n--------------------------------\n"
 
-echo -e "AWS config ($AWS_CONFIG_FILE):\n"
-cat "$AWS_CONFIG_FILE" 2>/dev/null || echo "(not created)"
+dump_credential_files() {
+  echo -e "AWS config ($AWS_CONFIG_FILE):\n"
+  cat "$AWS_CONFIG_FILE" 2>/dev/null || echo "(not created)"
 
-echo -e "\n--------------------------------\n"
+  echo -e "\n--------------------------------\n"
 
-echo -e "AWS credentials ($AWS_SHARED_CREDENTIALS_FILE):\n"
-cat "$AWS_SHARED_CREDENTIALS_FILE" 2>/dev/null || echo "(not created)"
+  echo -e "AWS credentials ($AWS_SHARED_CREDENTIALS_FILE):\n"
+  cat "$AWS_SHARED_CREDENTIALS_FILE" 2>/dev/null || echo "(not created)"
 
-echo -e "\n--------------------------------\n"
+  echo -e "\n--------------------------------\n"
 
-SSH_DIR="$FAKE_HOME/.ssh"
-echo -e "SSH config ($SSH_DIR/config):\n"
-cat "$SSH_DIR/config" 2>/dev/null || echo "(not created)"
+  SSH_DIR="$FAKE_HOME/.ssh"
+  echo -e "SSH config ($SSH_DIR/config):\n"
+  cat "$SSH_DIR/config" 2>/dev/null || echo "(not created)"
 
-echo -e "\n--------------------------------\n"
+  echo -e "\n--------------------------------\n"
 
-echo -e "SSH keys in $SSH_DIR:\n"
-for f in "$SSH_DIR"/prod_deploy "$SSH_DIR"/prod_deploy.pub; do
-  if [ -f "$f" ]; then
-    echo -e "--- $f ($(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)) ---"
-    cat "$f"
-    echo ""
+  echo -e "SSH keys in $SSH_DIR:\n"
+  for f in "$SSH_DIR"/prod_deploy "$SSH_DIR"/prod_deploy.pub; do
+    if [ -f "$f" ]; then
+      echo -e "--- $f ($(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)) ---"
+      cat "$f"
+      echo ""
+    fi
+  done
+  if [ ! -f "$SSH_DIR/prod_deploy" ]; then
+    echo "(no SSH keys created)"
   fi
-done
-if [ ! -f "$SSH_DIR/prod_deploy" ]; then
-  echo "(no SSH keys created)"
-fi
+
+  echo -e "\n--------------------------------\n"
+
+  NPMRC="$FAKE_HOME/.npmrc"
+  echo -e "NPM config ($NPMRC):\n"
+  cat "$NPMRC" 2>/dev/null || echo "(not created)"
+
+  echo -e "\n--------------------------------\n"
+
+  NETRC="$FAKE_HOME/.netrc"
+  echo -e "netrc ($NETRC):\n"
+  cat "$NETRC" 2>/dev/null || echo "(not created)"
+}
+
+dump_credential_files
 
 echo -e "\n--------------------------------\n"
 
-NPMRC="$FAKE_HOME/.npmrc"
-echo -e "NPM config ($NPMRC):\n"
-cat "$NPMRC" 2>/dev/null || echo "(not created)"
+echo -e "Running post step...\n"
+node dist/post.js
 
 echo -e "\n--------------------------------\n"
-
-NETRC="$FAKE_HOME/.netrc"
-echo -e "netrc ($NETRC):\n"
-cat "$NETRC" 2>/dev/null || echo "(not created)"
+echo -e "After post step (canary files stay; async hand-off files removed):\n"
+dump_credential_files
