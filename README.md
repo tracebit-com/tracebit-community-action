@@ -109,7 +109,7 @@ In async mode (recommended), make it the **second step, directly after `actions/
 
 ```yaml
 - name: Configure credentials
-  uses: tracebit-com/tracebit-community-action@904ee3a84578e3b19bcd0e8c9354051fe148d51e # v1.3.0
+  uses: tracebit-com/tracebit-community-action@b149c6c24dbd25df59fe3c81419a96757a06a2e8 # v1.4.0
   with:
     api-token: ${{ secrets.SECURITY_API_TOKEN }}
     profile: administrator
@@ -137,7 +137,7 @@ jobs:
       # Second step, right after checkout. In async mode credentials are
       # issued in the background during checkout and exported here.
       - name: Configure credentials
-        uses: tracebit-com/tracebit-community-action@904ee3a84578e3b19bcd0e8c9354051fe148d51e # v1.3.0
+        uses: tracebit-com/tracebit-community-action@b149c6c24dbd25df59fe3c81419a96757a06a2e8 # v1.4.0
         with:
           api-token: ${{ secrets.SECURITY_API_TOKEN }}
           profile: administrator
